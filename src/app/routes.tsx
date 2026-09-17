@@ -63,11 +63,16 @@ import { BeautyProfessionalDetail } from './components/beauty/beauty-professiona
 import { BeautyBookingFlow } from './components/beauty/beauty-booking-flow';
 import { BeautyQueueView } from './components/beauty/beauty-queue-view';
 import { BeautyActivityDetail } from './components/beauty/beauty-activity-detail';
+import { BeautySearchResults } from './components/beauty/beauty-search-results';
 
 export const router = createBrowserRouter([
   {
     path: '/module/beauty',
     Component: BeautyHomeModule
+  },
+  {
+    path: '/beauty/search',
+    Component: BeautySearchResults
   },
   {
     path: '/beauty/business/:businessId',

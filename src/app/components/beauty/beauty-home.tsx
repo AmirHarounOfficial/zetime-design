@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   ChevronLeft,
   Search,
@@ -21,6 +21,8 @@ import {
   Zap,
   ArrowRight,
   TrendingUp,
+  FilterX,
+  RotateCcw,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import {
@@ -30,6 +32,13 @@ import {
   mockBeautyQueueTicket,
   BeautyBusiness,
 } from '../../data/beauty-mock-data';
+import {
+  BeautyFilterState,
+  initialBeautyFilterState,
+} from '../../data/beauty-filter-types';
+import { filterBusinesses } from '../../data/beauty-filter-engine';
+import { BeautyFilterDrawer } from './beauty-filter-drawer';
+import { BeautyFilterChips } from './beauty-filter-chips';
 
 const categoryIconMap: Record<string, any> = {
   scissors: Scissors,
@@ -43,13 +52,10 @@ const categoryIconMap: Record<string, any> = {
 
 export function BeautyHomeModule() {
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState('all');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [filters, setFilters] = useState<BeautyFilterState>(initialBeautyFilterState);
+  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+  const [selectedQuickTab, setSelectedQuickTab] = useState('all');
   const [favorites, setFavorites] = useState<string[]>(['biz-lumiere']);
-  const [showFilterModal, setShowFilterModal] = useState(false);
-  const [audienceFilter, setAudienceFilter] = useState<'all' | 'women' | 'men' | 'unisex'>('all');
-  const [homeServiceOnly, setHomeServiceOnly] = useState(false);
 
   // Active booking if any
   const activeBooking = mockBeautyBookings.find(
@@ -64,34 +70,71 @@ export function BeautyHomeModule() {
     );
   };
 
-  const filteredBusinesses = beautyBusinesses.filter((biz) => {
-    const matchesSearch =
-      biz.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      biz.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      biz.services.some((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  // Count active filters
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (filters.serviceLocation !== 'all') count++;
+    if (filters.audience !== 'all') count++;
+    if (filters.location.selectedArea !== 'all') count++;
+    if (filters.location.maxDistanceKm < 50) count++;
+    if (filters.businessTypes.length > 0) count += filters.businessTypes.length;
+    if (filters.categoryId !== 'all') count++;
+    if (filters.serviceId !== 'all') count++;
+    if (filters.professionalId !== 'all') count++;
+    if (filters.minRating > 0) count++;
+    if (filters.priceRange.min > 0 || filters.priceRange.max < 1000) count++;
+    if (filters.availability.timeframe !== 'any') count++;
+    if (filters.onlyActiveOffers) count++;
+    return count;
+  }, [filters]);
 
-    const matchesAudience =
-      audienceFilter === 'all' || biz.audience === audienceFilter || biz.audience === 'unisex';
+  // Handlers for individual filter chips removal
+  const handleRemoveFilter = (key: string, value?: any) => {
+    setFilters((prev) => {
+      const updated = { ...prev };
+      if (key === 'serviceLocation') updated.serviceLocation = 'all';
+      if (key === 'audience') updated.audience = 'all';
+      if (key === 'area') updated.location = { ...prev.location, selectedArea: 'all' };
+      if (key === 'distance') updated.location = { ...prev.location, maxDistanceKm: 50 };
+      if (key === 'businessType') {
+        updated.businessTypes = prev.businessTypes.filter((t) => t !== value);
+      }
+      if (key === 'categoryId') updated.categoryId = 'all';
+      if (key === 'serviceId') updated.serviceId = 'all';
+      if (key === 'professionalId') updated.professionalId = 'all';
+      if (key === 'minRating') updated.minRating = 0;
+      if (key === 'priceRange') updated.priceRange = { min: 0, max: 1000 };
+      if (key === 'availability') updated.availability = { timeframe: 'any' };
+      if (key === 'offers') updated.onlyActiveOffers = false;
+      return updated;
+    });
+  };
 
-    const matchesHome = !homeServiceOnly || biz.services.some((s) => s.homeServiceAvailable);
+  const handleClearAll = () => {
+    setFilters((prev) => ({
+      ...initialBeautyFilterState,
+      searchQuery: prev.searchQuery,
+    }));
+    setSelectedQuickTab('all');
+  };
 
-    const matchesCategory =
-      !selectedCategory || biz.services.some((s) => s.categoryId === selectedCategory);
+  // Perform filtering using engine
+  const filteredBusinesses = useMemo(() => {
+    let list = filterBusinesses(beautyBusinesses, filters);
+    if (selectedQuickTab === 'favs') {
+      list = list.filter((b) => favorites.includes(b.id));
+    }
+    return list;
+  }, [filters, selectedQuickTab, favorites]);
 
-    const matchesFilterPill = () => {
-      if (selectedFilter === 'all') return true;
-      if (selectedFilter === 'today') return true; // available today
-      if (selectedFilter === 'now') return biz.branches.some((b) => b.queueActive);
-      if (selectedFilter === 'home') return biz.services.some((s) => s.homeServiceAvailable);
-      if (selectedFilter === 'women') return biz.audience === 'women';
-      if (selectedFilter === 'men') return biz.audience === 'men';
-      if (selectedFilter === 'offers') return (biz.offers?.length || 0) > 0;
-      if (selectedFilter === 'favs') return favorites.includes(biz.id);
-      return true;
-    };
-
-    return matchesSearch && matchesAudience && matchesHome && matchesCategory && matchesFilterPill();
-  });
+  const handleSearchSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (filters.searchQuery.trim()) {
+      navigate(`/beauty/search?q=${encodeURIComponent(filters.searchQuery)}`);
+    } else {
+      navigate('/beauty/search');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F2F5FB] via-white to-[#FEFBF3] pb-10" dir="rtl">
@@ -115,7 +158,7 @@ export function BeautyHomeModule() {
           </div>
 
           {/* Search Bar & Filter Button */}
-          <div className="flex items-center gap-2">
+          <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
             <div className="relative flex-1">
               <Search
                 size={18}
@@ -125,33 +168,55 @@ export function BeautyHomeModule() {
               <input
                 type="text"
                 placeholder="ابحث عن صالون، خدمة، أو أخصائي..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={filters.searchQuery}
+                onChange={(e) => setFilters((prev) => ({ ...prev, searchQuery: e.target.value }))}
                 className="w-full bg-white border border-[#C2D1E8]/50 pr-10 pl-3 py-2.5 rounded-[10px] text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2952AB]/20 focus:border-[#2952AB] transition-all shadow-sm"
               />
             </div>
             <button
-              onClick={() => setShowFilterModal(!showFilterModal)}
-              className={`p-2.5 rounded-[10px] border shadow-sm transition-all ${
-                audienceFilter !== 'all' || homeServiceOnly
+              type="button"
+              onClick={() => setIsFilterDrawerOpen(true)}
+              className={`relative p-2.5 rounded-[10px] border shadow-sm transition-all ${
+                activeFiltersCount > 0
                   ? 'bg-[#2952AB] text-white border-[#2952AB]'
                   : 'bg-white text-[#2952AB] border-[#C2D1E8]/50 hover:bg-[#F2F5FB]'
               }`}
+              title="تصفية الخدمات والصالونات"
             >
               <SlidersHorizontal size={18} strokeWidth={1.5} />
+              {activeFiltersCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#C69815] text-white text-[10px] font-black flex items-center justify-center border-2 border-white shadow">
+                  {activeFiltersCount}
+                </span>
+              )}
             </button>
-          </div>
+          </form>
 
-          {/* Location & Delivery Mode Indicator */}
+          {/* Location & Advanced Search Link */}
           <div className="flex items-center justify-between mt-3 text-xs text-gray-600 px-1">
             <div className="flex items-center gap-1 text-[#2952AB] font-medium">
               <MapPin size={14} className="text-[#C69815]" />
-              <span>الرياض، حي العليا (الأقرب إليك)</span>
+              <span>الرياض، {filters.location.selectedArea === 'all' ? 'حي العليا (الأقرب إليك)' : filters.location.selectedArea}</span>
             </div>
-            <span className="text-[11px] bg-[#C69815]/10 text-[#A88012] px-2 py-0.5 rounded-full font-semibold">
-              متعدد الفروع والدول
-            </span>
+            <Link
+              to="/beauty/search"
+              className="text-[11px] bg-[#2952AB]/10 text-[#2952AB] hover:bg-[#2952AB]/20 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 transition-colors"
+            >
+              <span>البحث الموسع</span>
+              <ArrowRight size={11} className="rotate-180" />
+            </Link>
           </div>
+
+          {/* Active Filter Chips */}
+          {activeFiltersCount > 0 && (
+            <div className="mt-3 pt-2.5 border-t border-[#C2D1E8]/30">
+              <BeautyFilterChips
+                filters={filters}
+                onRemoveFilter={handleRemoveFilter}
+                onClearAll={handleClearAll}
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -266,37 +331,88 @@ export function BeautyHomeModule() {
             { id: 'men', label: 'حلاقة رجالية' },
             { id: 'offers', label: 'عروض حصرية %' },
             { id: 'favs', label: 'المفضلة ❤️' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => {
-                setSelectedFilter(tab.id);
-                if (tab.id === 'women') setAudienceFilter('women');
-                else if (tab.id === 'men') setAudienceFilter('men');
-                else if (tab.id === 'home') setHomeServiceOnly(true);
-                else {
-                  setAudienceFilter('all');
-                  setHomeServiceOnly(false);
-                }
-              }}
-              className={`px-3.5 py-2 rounded-full font-medium whitespace-nowrap transition-all border ${
-                selectedFilter === tab.id
-                  ? 'bg-[#2952AB] text-white border-[#2952AB] shadow-sm'
-                  : 'bg-white text-gray-700 border-[#C2D1E8]/50 hover:border-[#2952AB]/30'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          ].map((tab) => {
+            const isTabActive =
+              tab.id === 'all'
+                ? activeFiltersCount === 0 && selectedQuickTab === 'all'
+                : tab.id === 'today'
+                ? filters.availability.timeframe === 'today'
+                : tab.id === 'now'
+                ? filters.availability.timeframe === 'now'
+                : tab.id === 'home'
+                ? filters.serviceLocation === 'at_home'
+                : tab.id === 'women'
+                ? filters.audience === 'women'
+                : tab.id === 'men'
+                ? filters.audience === 'men'
+                : tab.id === 'offers'
+                ? filters.onlyActiveOffers
+                : tab.id === 'favs'
+                ? selectedQuickTab === 'favs'
+                : false;
+
+            return (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setSelectedQuickTab(tab.id);
+                  if (tab.id === 'all') {
+                    handleClearAll();
+                  } else if (tab.id === 'today') {
+                    setFilters((prev) => ({
+                      ...prev,
+                      availability: {
+                        timeframe: prev.availability.timeframe === 'today' ? 'any' : 'today',
+                      },
+                    }));
+                  } else if (tab.id === 'now') {
+                    setFilters((prev) => ({
+                      ...prev,
+                      availability: {
+                        timeframe: prev.availability.timeframe === 'now' ? 'any' : 'now',
+                      },
+                    }));
+                  } else if (tab.id === 'home') {
+                    setFilters((prev) => ({
+                      ...prev,
+                      serviceLocation: prev.serviceLocation === 'at_home' ? 'all' : 'at_home',
+                    }));
+                  } else if (tab.id === 'women') {
+                    setFilters((prev) => ({
+                      ...prev,
+                      audience: prev.audience === 'women' ? 'all' : 'women',
+                    }));
+                  } else if (tab.id === 'men') {
+                    setFilters((prev) => ({
+                      ...prev,
+                      audience: prev.audience === 'men' ? 'all' : 'men',
+                    }));
+                  } else if (tab.id === 'offers') {
+                    setFilters((prev) => ({
+                      ...prev,
+                      onlyActiveOffers: !prev.onlyActiveOffers,
+                    }));
+                  }
+                }}
+                className={`px-3.5 py-2 rounded-full font-medium whitespace-nowrap transition-all border ${
+                  isTabActive
+                    ? 'bg-[#2952AB] text-white border-[#2952AB] shadow-sm'
+                    : 'bg-white text-gray-700 border-[#C2D1E8]/50 hover:border-[#2952AB]/30'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Master Categories Grid (US-002, US-035) */}
         <div>
           <div className="flex items-center justify-between mb-3 px-1">
             <h2 className="text-sm font-bold text-gray-900">فئات خدمات الجمال</h2>
-            {selectedCategory && (
+            {filters.categoryId !== 'all' && (
               <button
-                onClick={() => setSelectedCategory(null)}
+                onClick={() => setFilters((prev) => ({ ...prev, categoryId: 'all' }))}
                 className="text-xs text-[#2952AB] hover:underline font-semibold"
               >
                 إظهار الكل
@@ -306,11 +422,16 @@ export function BeautyHomeModule() {
           <div className="grid grid-cols-4 gap-2.5">
             {beautyCategories.map((cat) => {
               const Icon = categoryIconMap[cat.icon] || Sparkles;
-              const isSelected = selectedCategory === cat.id;
+              const isSelected = filters.categoryId === cat.id;
               return (
                 <button
                   key={cat.id}
-                  onClick={() => setSelectedCategory(isSelected ? null : cat.id)}
+                  onClick={() =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      categoryId: prev.categoryId === cat.id ? 'all' : cat.id,
+                    }))
+                  }
                   className={`flex flex-col items-center text-center p-2.5 rounded-[12px] border transition-all ${
                     isSelected
                       ? 'bg-[#2952AB]/10 border-[#2952AB] shadow-sm ring-1 ring-[#2952AB]'
@@ -370,135 +491,162 @@ export function BeautyHomeModule() {
             <span className="text-xs text-[#2952AB] font-bold">{filteredBusinesses.length} صالون</span>
           </div>
 
-          <div className="space-y-4">
-            {filteredBusinesses.map((biz) => {
-              const nearestBranch = biz.branches.find((b) => b.isNearest) || biz.branches[0];
-              const isFav = favorites.includes(biz.id);
-
-              return (
-                <div
-                  key={biz.id}
-                  className="bg-white rounded-[14px] border border-[#C2D1E8]/40 shadow-md hover:shadow-lg transition-all overflow-hidden"
+          {filteredBusinesses.length === 0 ? (
+            <div className="bg-white rounded-[14px] border border-[#C2D1E8]/50 p-8 text-center shadow-sm">
+              <div className="w-14 h-14 rounded-full bg-[#2952AB]/10 text-[#2952AB] flex items-center justify-center mx-auto mb-3">
+                <FilterX size={26} />
+              </div>
+              <h3 className="font-bold text-gray-900 text-sm">لا توجد صالونات مطابقة لخيارات التصفية</h3>
+              <p className="text-xs text-gray-500 mt-1 max-w-xs mx-auto">
+                جرب تغيير خيارات التصفية أو إلغاء بعض المعايير لعرض المزيد من المراكز المتاحة
+              </p>
+              <div className="flex items-center justify-center gap-2 mt-4">
+                <button
+                  onClick={handleClearAll}
+                  className="px-4 py-2 bg-[#2952AB] text-white rounded-[10px] text-xs font-bold hover:bg-[#1D3D7A] transition-colors flex items-center gap-1.5 shadow-sm active:scale-95"
                 >
-                  {/* Business Cover & Badges */}
-                  <div className="relative h-36 w-full">
-                    <img
-                      src={biz.coverUrls[0]}
-                      alt={biz.name}
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+                  <RotateCcw size={14} />
+                  <span>مسح جميع الفلاتر</span>
+                </button>
+                <Link
+                  to="/beauty/search"
+                  className="px-4 py-2 bg-[#F2F5FB] text-[#2952AB] border border-[#C2D1E8]/50 rounded-[10px] text-xs font-bold hover:bg-[#E3EAF6] transition-colors"
+                >
+                  البحث الموسع
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredBusinesses.map((biz) => {
+                const nearestBranch = biz.branches.find((b) => b.isNearest) || biz.branches[0];
+                const isFav = favorites.includes(biz.id);
 
-                    {/* Favorite Button */}
-                    <button
-                      onClick={(e) => toggleFavorite(biz.id, e)}
-                      className="absolute top-2.5 left-2.5 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center text-gray-600 hover:text-red-500 shadow-sm transition-all"
-                    >
-                      <Heart
-                        size={16}
-                        className={isFav ? 'fill-red-500 text-red-500' : 'text-gray-700'}
-                      />
-                    </button>
-
-                    {/* Audience & Type Badge */}
-                    <div className="absolute top-2.5 right-2.5 flex items-center gap-1">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/60 backdrop-blur-sm text-white">
-                        {biz.audience === 'women'
-                          ? 'نسائي'
-                          : biz.audience === 'men'
-                          ? 'رجالي'
-                          : 'للجميع'}
-                      </span>
-                      {biz.type === 'FREELANCER' && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#C69815] text-white">
-                          مستقلة
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Rating Badge */}
-                    <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-[8px] shadow-sm">
-                      <Star size={13} className="fill-[#C69815] text-[#C69815]" />
-                      <span className="text-xs font-bold text-gray-900">{biz.rating}</span>
-                      <span className="text-[10px] text-gray-500">({biz.reviewsCount})</span>
-                    </div>
-
-                    {/* Home service tag */}
-                    {biz.services.some((s) => s.homeServiceAvailable) && (
-                      <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1 bg-green-600/90 text-white px-2 py-0.5 rounded-[6px] text-[10px] font-bold">
-                        <HomeIcon size={11} />
-                        <span>خدمة منزلية متوفرة</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Business Details */}
-                  <div className="p-4">
-                    <div className="flex items-start gap-3">
+                return (
+                  <div
+                    key={biz.id}
+                    className="bg-white rounded-[14px] border border-[#C2D1E8]/40 shadow-md hover:shadow-lg transition-all overflow-hidden"
+                  >
+                    {/* Business Cover & Badges */}
+                    <div className="relative h-36 w-full">
                       <img
-                        src={biz.logoUrl}
+                        src={biz.coverUrls[0]}
                         alt={biz.name}
-                        className="w-12 h-12 rounded-[10px] object-cover border border-[#C2D1E8]/40 shadow-sm flex-shrink-0"
+                        className="w-full h-full object-cover"
                       />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1">
-                          <h3 className="font-bold text-gray-900 text-sm truncate">{biz.name}</h3>
-                          {biz.verified && (
-                            <ShieldCheck size={16} className="text-[#2952AB] flex-shrink-0" />
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{biz.description}</p>
-                        <div className="flex items-center gap-2 mt-1 text-[11px] text-gray-600">
-                          <span className="flex items-center gap-1 text-[#2952AB] font-medium">
-                            <MapPin size={12} className="text-[#C69815]" />
-                            {nearestBranch.name} • {nearestBranch.distanceKm} كم
-                          </span>
-                          <span>•</span>
-                          <span className="flex items-center gap-1">
-                            <Clock size={12} className="text-gray-400" />
-                            {nearestBranch.workingHours}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
 
-                    {/* Popular Services Chips */}
-                    <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-gray-100">
-                      {biz.services.slice(0, 3).map((srv) => (
-                        <span
-                          key={srv.serviceId}
-                          className="text-[11px] bg-[#F2F5FB] text-[#2952AB] px-2.5 py-1 rounded-[6px] font-medium border border-[#C2D1E8]/30 flex items-center gap-1"
-                        >
-                          <span>{srv.name}</span>
-                          <strong className="text-gray-900">{srv.price} ر.س</strong>
-                        </span>
-                      ))}
-                    </div>
-
-                    {/* Actions: Book Now & Live Queue */}
-                    <div className="flex items-center gap-2 mt-3.5 pt-2">
-                      <Link
-                        to={`/beauty/business/${biz.id}`}
-                        className="flex-1 py-2.5 px-3 bg-[#2952AB] hover:bg-[#1D3D7A] text-white rounded-[10px] text-xs font-bold text-center shadow-sm active:scale-95 transition-all"
+                      {/* Favorite Button */}
+                      <button
+                        onClick={(e) => toggleFavorite(biz.id, e)}
+                        className="absolute top-2.5 left-2.5 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center text-gray-600 hover:text-red-500 shadow-sm transition-all"
                       >
-                        عرض الخدمات والحجز
-                      </Link>
+                        <Heart
+                          size={16}
+                          className={isFav ? 'fill-red-500 text-red-500' : 'text-gray-700'}
+                        />
+                      </button>
 
-                      {nearestBranch.queueActive && (
-                        <Link
-                          to={`/beauty/queue/${biz.id}`}
-                          className="py-2.5 px-3 bg-gradient-to-r from-[#FEF8E7] to-[#FAEFC1] text-[#8A680F] border border-[#C69815]/30 hover:border-[#C69815] rounded-[10px] text-xs font-bold text-center flex items-center gap-1 active:scale-95 transition-all"
-                        >
-                          <Zap size={13} className="text-[#C69815]" />
-                          <span>طابور فوري ({nearestBranch.currentQueueCount})</span>
-                        </Link>
+                      {/* Audience & Type Badge */}
+                      <div className="absolute top-2.5 right-2.5 flex items-center gap-1">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/60 backdrop-blur-sm text-white">
+                          {biz.audience === 'women'
+                            ? 'نسائي'
+                            : biz.audience === 'men'
+                            ? 'رجالي'
+                            : 'للجميع'}
+                        </span>
+                        {biz.type === 'FREELANCER' && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#C69815] text-white">
+                            مستقلة
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Rating Badge */}
+                      <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-[8px] shadow-sm">
+                        <Star size={13} className="fill-[#C69815] text-[#C69815]" />
+                        <span className="text-xs font-bold text-gray-900">{biz.rating}</span>
+                        <span className="text-[10px] text-gray-500">({biz.reviewsCount})</span>
+                      </div>
+
+                      {/* Home service tag */}
+                      {biz.services.some((s) => s.homeServiceAvailable) && (
+                        <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1 bg-green-600/90 text-white px-2 py-0.5 rounded-[6px] text-[10px] font-bold">
+                          <HomeIcon size={11} />
+                          <span>خدمة منزلية متوفرة</span>
+                        </div>
                       )}
                     </div>
+
+                    {/* Business Details */}
+                    <div className="p-4">
+                      <div className="flex items-start gap-3">
+                        <img
+                          src={biz.logoUrl}
+                          alt={biz.name}
+                          className="w-12 h-12 rounded-[10px] object-cover border border-[#C2D1E8]/40 shadow-sm flex-shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1">
+                            <h3 className="font-bold text-gray-900 text-sm truncate">{biz.name}</h3>
+                            {biz.verified && (
+                              <ShieldCheck size={16} className="text-[#2952AB] flex-shrink-0" />
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{biz.description}</p>
+                          <div className="flex items-center gap-2 mt-1 text-[11px] text-gray-600">
+                            <span className="flex items-center gap-1 text-[#2952AB] font-medium">
+                              <MapPin size={12} className="text-[#C69815]" />
+                              {nearestBranch.name} • {nearestBranch.distanceKm} كم
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <Clock size={12} className="text-gray-400" />
+                              {nearestBranch.workingHours}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Popular Services Chips */}
+                      <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-gray-100">
+                        {biz.services.slice(0, 3).map((srv) => (
+                          <span
+                            key={srv.serviceId}
+                            className="text-[11px] bg-[#F2F5FB] text-[#2952AB] px-2.5 py-1 rounded-[6px] font-medium border border-[#C2D1E8]/30 flex items-center gap-1"
+                          >
+                            <span>{srv.name}</span>
+                            <strong className="text-gray-900">{srv.price} ر.س</strong>
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Actions: Book Now & Live Queue */}
+                      <div className="flex items-center gap-2 mt-3.5 pt-2">
+                        <Link
+                          to={`/beauty/business/${biz.id}`}
+                          className="flex-1 py-2.5 px-3 bg-[#2952AB] hover:bg-[#1D3D7A] text-white rounded-[10px] text-xs font-bold text-center shadow-sm active:scale-95 transition-all"
+                        >
+                          عرض الخدمات والحجز
+                        </Link>
+
+                        {nearestBranch.queueActive && (
+                          <Link
+                            to={`/beauty/queue/${biz.id}`}
+                            className="py-2.5 px-3 bg-gradient-to-r from-[#FEF8E7] to-[#FAEFC1] text-[#8A680F] border border-[#C69815]/30 hover:border-[#C69815] rounded-[10px] text-xs font-bold text-center flex items-center gap-1 active:scale-95 transition-all"
+                          >
+                            <Zap size={13} className="text-[#C69815]" />
+                            <span>طابور فوري ({nearestBranch.currentQueueCount})</span>
+                          </Link>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Featured Professionals Carousel (US-005, US-012, US-013) */}
@@ -561,70 +709,14 @@ export function BeautyHomeModule() {
         </div>
       </div>
 
-      {/* Filter Modal Sheet */}
-      {showFilterModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-end justify-center p-0">
-          <div className="bg-white rounded-t-[20px] w-full max-w-md p-5 max-h-[85vh] overflow-y-auto space-y-4">
-            <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="font-bold text-gray-900 text-base">خيارات تصفية خدمات الجمال</h3>
-              <button
-                onClick={() => setShowFilterModal(false)}
-                className="text-xs text-gray-500 font-semibold p-1 hover:bg-gray-100 rounded"
-              >
-                إغلاق
-              </button>
-            </div>
-
-            {/* Audience */}
-            <div>
-              <label className="text-xs font-bold text-gray-700 block mb-2">الفئة المستهدفة</label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: 'all', label: 'الجميع' },
-                  { id: 'women', label: 'صالونات نسائية' },
-                  { id: 'men', label: 'حلاقة رجالية' },
-                ].map((aud) => (
-                  <button
-                    key={aud.id}
-                    onClick={() => setAudienceFilter(aud.id as any)}
-                    className={`py-2 px-3 rounded-[8px] text-xs font-semibold border ${
-                      audienceFilter === aud.id
-                        ? 'bg-[#2952AB] text-white border-[#2952AB]'
-                        : 'bg-white text-gray-700 border-gray-200'
-                    }`}
-                  >
-                    {aud.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Home Service Toggle */}
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-[10px] border border-gray-200">
-              <div className="flex items-center gap-2">
-                <HomeIcon size={18} className="text-[#2952AB]" />
-                <div>
-                  <span className="text-xs font-bold text-gray-900 block">خدمات منزلية فقط (Home Service)</span>
-                  <span className="text-[11px] text-gray-500">عرض الصالونات والخبراء الذين يقدمون خدمات بالمنزل</span>
-                </div>
-              </div>
-              <input
-                type="checkbox"
-                checked={homeServiceOnly}
-                onChange={(e) => setHomeServiceOnly(e.target.checked)}
-                className="w-5 h-5 accent-[#2952AB] rounded cursor-pointer"
-              />
-            </div>
-
-            <button
-              onClick={() => setShowFilterModal(false)}
-              className="w-full py-3 bg-[#2952AB] text-white font-bold rounded-[10px] text-sm shadow active:scale-98 transition-all"
-            >
-              تطبيق التصفية
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Progressive Filter Drawer */}
+      <BeautyFilterDrawer
+        isOpen={isFilterDrawerOpen}
+        onClose={() => setIsFilterDrawerOpen(false)}
+        filters={filters}
+        onApply={(newFilters) => setFilters(newFilters)}
+        onReset={handleClearAll}
+      />
     </div>
   );
 }
