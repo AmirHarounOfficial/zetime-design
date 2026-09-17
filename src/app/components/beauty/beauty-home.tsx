@@ -23,6 +23,9 @@ import {
   TrendingUp,
   FilterX,
   RotateCcw,
+  Store,
+  ChevronDown,
+  X,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import {
@@ -35,10 +38,25 @@ import {
 import {
   BeautyFilterState,
   initialBeautyFilterState,
+  BeautySortOption,
+  BeautyViewMode,
 } from '../../data/beauty-filter-types';
-import { filterBusinesses } from '../../data/beauty-filter-engine';
+import {
+  filterBusinesses,
+  filterBookableServices,
+  filterProfessionals,
+} from '../../data/beauty-filter-engine';
 import { BeautyFilterDrawer } from './beauty-filter-drawer';
 import { BeautyFilterChips } from './beauty-filter-chips';
+
+const sortLabels: Record<BeautySortOption, string> = {
+  relevance: 'الأكثر ملائمة',
+  distance: 'الأقرب إليك',
+  rating: 'الأعلى تقييماً',
+  price_asc: 'السعر: الأقل أولاً',
+  price_desc: 'السعر: الأعلى أولاً',
+  earliest: 'الأسبق توفراً',
+};
 
 const categoryIconMap: Record<string, any> = {
   scissors: Scissors,
@@ -54,6 +72,7 @@ export function BeautyHomeModule() {
   const navigate = useNavigate();
   const [filters, setFilters] = useState<BeautyFilterState>(initialBeautyFilterState);
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [selectedQuickTab, setSelectedQuickTab] = useState('all');
   const [favorites, setFavorites] = useState<string[]>(['biz-lumiere']);
 
@@ -118,8 +137,8 @@ export function BeautyHomeModule() {
     setSelectedQuickTab('all');
   };
 
-  // Perform filtering using engine
-  const filteredBusinesses = useMemo(() => {
+  // Perform filtering using engine across all 3 discovery modes
+  const businessResults = useMemo(() => {
     let list = filterBusinesses(beautyBusinesses, filters);
     if (selectedQuickTab === 'favs') {
       list = list.filter((b) => favorites.includes(b.id));
@@ -127,13 +146,25 @@ export function BeautyHomeModule() {
     return list;
   }, [filters, selectedQuickTab, favorites]);
 
+  const serviceResults = useMemo(
+    () => filterBookableServices(beautyBusinesses, filters),
+    [filters]
+  );
+
+  const professionalResults = useMemo(
+    () => filterProfessionals(beautyBusinesses, filters),
+    [filters]
+  );
+
+  const currentCount =
+    filters.viewMode === 'services'
+      ? serviceResults.length
+      : filters.viewMode === 'professionals'
+      ? professionalResults.length
+      : businessResults.length;
+
   const handleSearchSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (filters.searchQuery.trim()) {
-      navigate(`/beauty/search?q=${encodeURIComponent(filters.searchQuery)}`);
-    } else {
-      navigate('/beauty/search');
-    }
   };
 
   return (
@@ -158,7 +189,7 @@ export function BeautyHomeModule() {
           </div>
 
           {/* Search Bar & Filter Button */}
-          <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <Search
                 size={18}
@@ -170,8 +201,17 @@ export function BeautyHomeModule() {
                 placeholder="ابحث عن صالون، خدمة، أو أخصائي..."
                 value={filters.searchQuery}
                 onChange={(e) => setFilters((prev) => ({ ...prev, searchQuery: e.target.value }))}
-                className="w-full bg-white border border-[#C2D1E8]/50 pr-10 pl-3 py-2.5 rounded-[10px] text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2952AB]/20 focus:border-[#2952AB] transition-all shadow-sm"
+                className="w-full bg-white border border-[#C2D1E8]/50 pr-10 pl-8 py-2.5 rounded-[10px] text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#2952AB]/20 focus:border-[#2952AB] transition-all shadow-sm"
               />
+              {filters.searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setFilters((prev) => ({ ...prev, searchQuery: '' }))}
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 rounded-full transition-colors"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
             <button
               type="button"
@@ -190,21 +230,17 @@ export function BeautyHomeModule() {
                 </span>
               )}
             </button>
-          </form>
+          </div>
 
-          {/* Location & Advanced Search Link */}
+          {/* Location & Active Count Summary */}
           <div className="flex items-center justify-between mt-3 text-xs text-gray-600 px-1">
             <div className="flex items-center gap-1 text-[#2952AB] font-medium">
               <MapPin size={14} className="text-[#C69815]" />
               <span>الرياض، {filters.location.selectedArea === 'all' ? 'حي العليا (الأقرب إليك)' : filters.location.selectedArea}</span>
             </div>
-            <Link
-              to="/beauty/search"
-              className="text-[11px] bg-[#2952AB]/10 text-[#2952AB] hover:bg-[#2952AB]/20 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 transition-colors"
-            >
-              <span>البحث الموسع</span>
-              <ArrowRight size={11} className="rotate-180" />
-            </Link>
+            <span className="text-[11px] bg-[#C69815]/10 text-[#A88012] px-2.5 py-0.5 rounded-full font-bold">
+              {currentCount} متاح حالياً
+            </span>
           </div>
 
           {/* Active Filter Chips */}
@@ -481,173 +517,392 @@ export function BeautyHomeModule() {
           </div>
         </div>
 
-        {/* Businesses List (US-004, US-009, US-010) */}
-        <div>
-          <div className="flex items-center justify-between mb-3 px-1">
-            <div>
-              <h2 className="text-sm font-bold text-gray-900">أبرز الصالونات ومراكز التجميل</h2>
-              <p className="text-xs text-gray-500">أفضل تقييم بالقرب منك مع حجز فوري ومؤكد</p>
-            </div>
-            <span className="text-xs text-[#2952AB] font-bold">{filteredBusinesses.length} صالون</span>
-          </div>
-
-          {filteredBusinesses.length === 0 ? (
-            <div className="bg-white rounded-[14px] border border-[#C2D1E8]/50 p-8 text-center shadow-sm">
-              <div className="w-14 h-14 rounded-full bg-[#2952AB]/10 text-[#2952AB] flex items-center justify-center mx-auto mb-3">
-                <FilterX size={26} />
-              </div>
-              <h3 className="font-bold text-gray-900 text-sm">لا توجد صالونات مطابقة لخيارات التصفية</h3>
-              <p className="text-xs text-gray-500 mt-1 max-w-xs mx-auto">
-                جرب تغيير خيارات التصفية أو إلغاء بعض المعايير لعرض المزيد من المراكز المتاحة
-              </p>
-              <div className="flex items-center justify-center gap-2 mt-4">
-                <button
-                  onClick={handleClearAll}
-                  className="px-4 py-2 bg-[#2952AB] text-white rounded-[10px] text-xs font-bold hover:bg-[#1D3D7A] transition-colors flex items-center gap-1.5 shadow-sm active:scale-95"
+        {/* Discovery Modes Bar (3 View Modes) */}
+        <div className="bg-white rounded-[14px] p-1.5 border border-[#C2D1E8]/50 shadow-xs flex items-center gap-1">
+          {[
+            { id: 'businesses', label: 'الصالونات والمراكز', count: businessResults.length, icon: Store },
+            { id: 'services', label: 'الخدمات المتاحة', count: serviceResults.length, icon: Sparkles },
+            { id: 'professionals', label: 'الخبراء والمصففين', count: professionalResults.length, icon: UserCheck },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isTabActive = filters.viewMode === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setFilters((prev) => ({ ...prev, viewMode: tab.id as BeautyViewMode }))}
+                className={`flex-1 py-2 px-1.5 rounded-[10px] text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                  isTabActive
+                    ? 'bg-[#2952AB] text-white shadow-xs'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <Icon size={13} className={isTabActive ? 'text-[#C69815]' : 'text-gray-400'} />
+                <span className="truncate">{tab.label}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    isTabActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
+                  }`}
                 >
-                  <RotateCcw size={14} />
-                  <span>مسح جميع الفلاتر</span>
-                </button>
-                <Link
-                  to="/beauty/search"
-                  className="px-4 py-2 bg-[#F2F5FB] text-[#2952AB] border border-[#C2D1E8]/50 rounded-[10px] text-xs font-bold hover:bg-[#E3EAF6] transition-colors"
-                >
-                  البحث الموسع
-                </Link>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {filteredBusinesses.map((biz) => {
-                const nearestBranch = biz.branches.find((b) => b.isNearest) || biz.branches[0];
-                const isFav = favorites.includes(biz.id);
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
 
-                return (
-                  <div
-                    key={biz.id}
-                    className="bg-white rounded-[14px] border border-[#C2D1E8]/40 shadow-md hover:shadow-lg transition-all overflow-hidden"
+        {/* Results Count & Sorting Toolbar */}
+        <div className="flex items-center justify-between text-xs px-1">
+          <span className="text-gray-500 font-medium">
+            عرض <strong className="text-gray-900 font-bold">{currentCount}</strong>{' '}
+            {filters.viewMode === 'services'
+              ? 'خدمة متاحة'
+              : filters.viewMode === 'professionals'
+              ? 'أخصائي معتمد'
+              : 'صالون ومركز'}
+          </span>
+
+          <div className="relative">
+            <button
+              onClick={() => setShowSortDropdown(!showSortDropdown)}
+              className="flex items-center gap-1 text-[#2952AB] font-bold bg-white px-2.5 py-1 rounded-[8px] border border-[#C2D1E8]/50 shadow-2xs hover:bg-gray-50 transition-colors"
+            >
+              <span>الترتيب: {sortLabels[filters.sortBy]}</span>
+              <ChevronDown size={14} />
+            </button>
+
+            {showSortDropdown && (
+              <div className="absolute left-0 mt-1 w-44 bg-white rounded-[10px] border border-[#C2D1E8] shadow-lg z-20 py-1 text-xs">
+                {(Object.keys(sortLabels) as BeautySortOption[]).map((opt) => (
+                  <button
+                    key={opt}
+                    onClick={() => {
+                      setFilters((prev) => ({ ...prev, sortBy: opt }));
+                      setShowSortDropdown(false);
+                    }}
+                    className={`w-full text-right px-3 py-2 font-medium transition-colors ${
+                      filters.sortBy === opt
+                        ? 'bg-[#F2F5FB] text-[#2952AB] font-bold'
+                        : 'text-gray-700 hover:bg-gray-50'
+                    }`}
                   >
-                    {/* Business Cover & Badges */}
-                    <div className="relative h-36 w-full">
-                      <img
-                        src={biz.coverUrls[0]}
-                        alt={biz.name}
-                        className="w-full h-full object-cover"
+                    {sortLabels[opt]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Empty State */}
+        {currentCount === 0 && (
+          <div className="bg-white rounded-[16px] p-8 border border-[#C2D1E8]/50 shadow-sm text-center space-y-4 my-2">
+            <div className="w-16 h-16 rounded-full bg-[#FEFBF3] border border-[#FAEFC1] flex items-center justify-center mx-auto text-[#C69815]">
+              <FilterX size={28} />
+            </div>
+
+            <div>
+              <h3 className="font-bold text-base text-gray-900">لا توجد نتائج تطابق شروط التصفية</h3>
+              <p className="text-xs text-gray-500 mt-1 max-w-xs mx-auto leading-relaxed">
+                قد تكون الفلاتر المحددة مقيدة للغاية أو لا تتوفر مواعيد شاغرة حالياً بنفس الشروط.
+              </p>
+            </div>
+
+            {/* Recovery Action Buttons */}
+            <div className="space-y-2 max-w-xs mx-auto pt-2">
+              <button
+                onClick={handleClearAll}
+                className="w-full py-2.5 px-4 bg-[#2952AB] hover:bg-[#1D3D7A] text-white rounded-[10px] text-xs font-bold shadow-xs active:scale-98 transition-all flex items-center justify-center gap-1.5"
+              >
+                <RotateCcw size={14} />
+                <span>إعادة تعيين الفلاتر بالكامل</span>
+              </button>
+
+              {filters.serviceLocation === 'at_home' && (
+                <button
+                  onClick={() => setFilters((prev) => ({ ...prev, serviceLocation: 'all' }))}
+                  className="w-full py-2 px-3 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-[8px] text-xs font-semibold border border-gray-200 transition-colors"
+                >
+                  التبديل إلى خدمات الصالون
+                </button>
+              )}
+
+              {filters.location.maxDistanceKm < 50 && (
+                <button
+                  onClick={() =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      location: { ...prev.location, maxDistanceKm: 50 },
+                    }))
+                  }
+                  className="w-full py-2 px-3 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-[8px] text-xs font-semibold border border-gray-200 transition-colors"
+                >
+                  توسيع نطاق المسافة (حتى 50 كم)
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Dynamic Results: Mode 1 - Businesses */}
+        {filters.viewMode === 'businesses' && currentCount > 0 && (
+          <div className="space-y-4">
+            {businessResults.map((biz) => {
+              const nearestBranch = biz.branches.find((b) => b.isNearest) || biz.branches[0];
+              const isFav = favorites.includes(biz.id);
+
+              return (
+                <div
+                  key={biz.id}
+                  className="bg-white rounded-[14px] border border-[#C2D1E8]/40 shadow-md hover:shadow-lg transition-all overflow-hidden"
+                >
+                  {/* Business Cover & Badges */}
+                  <div className="relative h-36 w-full">
+                    <img
+                      src={biz.coverUrls[0]}
+                      alt={biz.name}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+
+                    {/* Favorite Button */}
+                    <button
+                      onClick={(e) => toggleFavorite(biz.id, e)}
+                      className="absolute top-2.5 left-2.5 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center text-gray-600 hover:text-red-500 shadow-sm transition-all"
+                    >
+                      <Heart
+                        size={16}
+                        className={isFav ? 'fill-red-500 text-red-500' : 'text-gray-700'}
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+                    </button>
 
-                      {/* Favorite Button */}
-                      <button
-                        onClick={(e) => toggleFavorite(biz.id, e)}
-                        className="absolute top-2.5 left-2.5 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center text-gray-600 hover:text-red-500 shadow-sm transition-all"
-                      >
-                        <Heart
-                          size={16}
-                          className={isFav ? 'fill-red-500 text-red-500' : 'text-gray-700'}
-                        />
-                      </button>
-
-                      {/* Audience & Type Badge */}
-                      <div className="absolute top-2.5 right-2.5 flex items-center gap-1">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/60 backdrop-blur-sm text-white">
-                          {biz.audience === 'women'
-                            ? 'نسائي'
-                            : biz.audience === 'men'
-                            ? 'رجالي'
-                            : 'للجميع'}
+                    {/* Audience & Type Badge */}
+                    <div className="absolute top-2.5 right-2.5 flex items-center gap-1">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/60 backdrop-blur-sm text-white">
+                        {biz.audience === 'women'
+                          ? 'نسائي'
+                          : biz.audience === 'men'
+                          ? 'رجالي'
+                          : 'للجميع'}
+                      </span>
+                      {biz.type === 'FREELANCER' && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#C69815] text-white">
+                          مستقلة
                         </span>
-                        {biz.type === 'FREELANCER' && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#C69815] text-white">
-                            مستقلة
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Rating Badge */}
-                      <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-[8px] shadow-sm">
-                        <Star size={13} className="fill-[#C69815] text-[#C69815]" />
-                        <span className="text-xs font-bold text-gray-900">{biz.rating}</span>
-                        <span className="text-[10px] text-gray-500">({biz.reviewsCount})</span>
-                      </div>
-
-                      {/* Home service tag */}
-                      {biz.services.some((s) => s.homeServiceAvailable) && (
-                        <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1 bg-green-600/90 text-white px-2 py-0.5 rounded-[6px] text-[10px] font-bold">
-                          <HomeIcon size={11} />
-                          <span>خدمة منزلية متوفرة</span>
-                        </div>
                       )}
                     </div>
 
-                    {/* Business Details */}
-                    <div className="p-4">
-                      <div className="flex items-start gap-3">
-                        <img
-                          src={biz.logoUrl}
-                          alt={biz.name}
-                          className="w-12 h-12 rounded-[10px] object-cover border border-[#C2D1E8]/40 shadow-sm flex-shrink-0"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1">
-                            <h3 className="font-bold text-gray-900 text-sm truncate">{biz.name}</h3>
-                            {biz.verified && (
-                              <ShieldCheck size={16} className="text-[#2952AB] flex-shrink-0" />
-                            )}
-                          </div>
-                          <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{biz.description}</p>
-                          <div className="flex items-center gap-2 mt-1 text-[11px] text-gray-600">
-                            <span className="flex items-center gap-1 text-[#2952AB] font-medium">
-                              <MapPin size={12} className="text-[#C69815]" />
-                              {nearestBranch.name} • {nearestBranch.distanceKm} كم
-                            </span>
-                            <span>•</span>
-                            <span className="flex items-center gap-1">
-                              <Clock size={12} className="text-gray-400" />
-                              {nearestBranch.workingHours}
-                            </span>
-                          </div>
+                    {/* Rating Badge */}
+                    <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-[8px] shadow-sm">
+                      <Star size={13} className="fill-[#C69815] text-[#C69815]" />
+                      <span className="text-xs font-bold text-gray-900">{biz.rating}</span>
+                      <span className="text-[10px] text-gray-500">({biz.reviewsCount})</span>
+                    </div>
+
+                    {/* Home service tag */}
+                    {biz.services.some((s) => s.homeServiceAvailable) && (
+                      <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1 bg-green-600/90 text-white px-2 py-0.5 rounded-[6px] text-[10px] font-bold">
+                        <HomeIcon size={11} />
+                        <span>خدمة منزلية متوفرة</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Business Details */}
+                  <div className="p-4">
+                    <div className="flex items-start gap-3">
+                      <img
+                        src={biz.logoUrl}
+                        alt={biz.name}
+                        className="w-12 h-12 rounded-[10px] object-cover border border-[#C2D1E8]/40 shadow-sm flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1">
+                          <h3 className="font-bold text-gray-900 text-sm truncate">{biz.name}</h3>
+                          {biz.verified && (
+                            <ShieldCheck size={16} className="text-[#2952AB] flex-shrink-0" />
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{biz.description}</p>
+                        <div className="flex items-center gap-2 mt-1 text-[11px] text-gray-600">
+                          <span className="flex items-center gap-1 text-[#2952AB] font-medium">
+                            <MapPin size={12} className="text-[#C69815]" />
+                            {nearestBranch.name} • {nearestBranch.distanceKm} كم
+                          </span>
+                          <span>•</span>
+                          <span className="flex items-center gap-1">
+                            <Clock size={12} className="text-gray-400" />
+                            {nearestBranch.workingHours}
+                          </span>
                         </div>
                       </div>
+                    </div>
 
-                      {/* Popular Services Chips */}
-                      <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-gray-100">
-                        {biz.services.slice(0, 3).map((srv) => (
-                          <span
-                            key={srv.serviceId}
-                            className="text-[11px] bg-[#F2F5FB] text-[#2952AB] px-2.5 py-1 rounded-[6px] font-medium border border-[#C2D1E8]/30 flex items-center gap-1"
-                          >
-                            <span>{srv.name}</span>
-                            <strong className="text-gray-900">{srv.price} ر.س</strong>
-                          </span>
-                        ))}
-                      </div>
-
-                      {/* Actions: Book Now & Live Queue */}
-                      <div className="flex items-center gap-2 mt-3.5 pt-2">
-                        <Link
-                          to={`/beauty/business/${biz.id}`}
-                          className="flex-1 py-2.5 px-3 bg-[#2952AB] hover:bg-[#1D3D7A] text-white rounded-[10px] text-xs font-bold text-center shadow-sm active:scale-95 transition-all"
+                    {/* Popular Services Chips */}
+                    <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-gray-100">
+                      {biz.services.slice(0, 3).map((srv) => (
+                        <span
+                          key={srv.serviceId}
+                          className="text-[11px] bg-[#F2F5FB] text-[#2952AB] px-2.5 py-1 rounded-[6px] font-medium border border-[#C2D1E8]/30 flex items-center gap-1"
                         >
-                          عرض الخدمات والحجز
-                        </Link>
+                          <span>{srv.name}</span>
+                          <strong className="text-gray-900">{srv.price} ر.س</strong>
+                        </span>
+                      ))}
+                    </div>
 
-                        {nearestBranch.queueActive && (
-                          <Link
-                            to={`/beauty/queue/${biz.id}`}
-                            className="py-2.5 px-3 bg-gradient-to-r from-[#FEF8E7] to-[#FAEFC1] text-[#8A680F] border border-[#C69815]/30 hover:border-[#C69815] rounded-[10px] text-xs font-bold text-center flex items-center gap-1 active:scale-95 transition-all"
-                          >
-                            <Zap size={13} className="text-[#C69815]" />
-                            <span>طابور فوري ({nearestBranch.currentQueueCount})</span>
-                          </Link>
-                        )}
-                      </div>
+                    {/* Actions: Book Now & Live Queue */}
+                    <div className="flex items-center gap-2 mt-3.5 pt-2">
+                      <Link
+                        to={`/beauty/business/${biz.id}`}
+                        className="flex-1 py-2.5 px-3 bg-[#2952AB] hover:bg-[#1D3D7A] text-white rounded-[10px] text-xs font-bold text-center shadow-sm active:scale-95 transition-all"
+                      >
+                        عرض الخدمات والحجز
+                      </Link>
+
+                      {nearestBranch.queueActive && (
+                        <Link
+                          to={`/beauty/queue/${biz.id}`}
+                          className="py-2.5 px-3 bg-gradient-to-r from-[#FEF8E7] to-[#FAEFC1] text-[#8A680F] border border-[#C69815]/30 hover:border-[#C69815] rounded-[10px] text-xs font-bold text-center flex items-center gap-1 active:scale-95 transition-all"
+                        >
+                          <Zap size={13} className="text-[#C69815]" />
+                          <span>طابور فوري ({nearestBranch.currentQueueCount})</span>
+                        </Link>
+                      )}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Dynamic Results: Mode 2 - Services */}
+        {filters.viewMode === 'services' && currentCount > 0 && (
+          <div className="space-y-3">
+            {serviceResults.map((srv) => (
+              <div
+                key={`${srv.businessId}-${srv.serviceId}`}
+                className="bg-white rounded-[14px] p-4 border border-[#C2D1E8]/40 shadow-xs hover:shadow-md transition-all space-y-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-sm text-gray-900">{srv.serviceName}</h4>
+                      {srv.hasActiveOffer && (
+                        <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.2 rounded font-bold border border-red-100">
+                          خصم {srv.offerDiscount}%
+                        </span>
+                      )}
+                    </div>
+                    <Link
+                      to={`/beauty/business/${srv.businessId}`}
+                      className="text-xs text-[#2952AB] font-semibold mt-0.5 block hover:underline"
+                    >
+                      {srv.businessName} • {srv.branchName}
+                    </Link>
+                    <div className="flex items-center gap-2 mt-1 text-[11px] text-gray-500">
+                      <span className="flex items-center gap-1">
+                        <Clock size={11} className="text-[#2952AB]" />
+                        {srv.durationMin} دقيقة
+                      </span>
+                      <span>•</span>
+                      <span>يبعد {srv.distanceKm} كم</span>
+                    </div>
+                  </div>
+
+                  <div className="text-left flex-shrink-0">
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-base font-black text-[#2952AB]">{srv.price}</span>
+                      <span className="text-xs text-gray-500">ر.س</span>
+                    </div>
+                    {srv.homeServiceAvailable && (
+                      <span className="text-[10px] text-gray-500 block">
+                        بالمنزل: {srv.homePrice} ر.س
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Eligible Professionals & Direct Booking CTA */}
+                <div className="pt-2.5 border-t border-gray-100 flex items-center justify-between">
+                  <div className="flex items-center gap-1 text-[11px] text-gray-600">
+                    <span>متاح مع:</span>
+                    <strong className="text-gray-800">
+                      {srv.eligibleProfessionals.length > 0
+                        ? srv.eligibleProfessionals.map((p) => p.name.split(' ')[0]).join('، ')
+                        : 'أي أخصائي متاح'}
+                    </strong>
+                  </div>
+
+                  <Link
+                    to={`/beauty/book/${srv.businessId}?branchId=${srv.branchId}&services=${srv.serviceId}`}
+                    className="py-1.5 px-4 bg-gradient-to-r from-[#2952AB] to-[#1D3D7A] text-white rounded-[8px] text-xs font-bold shadow-2xs hover:shadow active:scale-95 transition-all flex items-center gap-1"
+                  >
+                    <span>احجز الآن</span>
+                    <ArrowRight size={13} className="rotate-180" />
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Dynamic Results: Mode 3 - Professionals */}
+        {filters.viewMode === 'professionals' && currentCount > 0 && (
+          <div className="space-y-3">
+            {professionalResults.map(({ professional, business, branch, services }) => (
+              <div
+                key={professional.id}
+                className="bg-white rounded-[14px] p-4 border border-[#C2D1E8]/40 shadow-xs hover:shadow-md transition-all space-y-3"
+              >
+                <div className="flex items-start gap-3.5">
+                  <img
+                    src={professional.photoUrl}
+                    alt={professional.name}
+                    className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-xs ring-1 ring-[#C69815]/30 flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-bold text-sm text-gray-900 truncate">{professional.name}</h4>
+                      <div className="flex items-center gap-1 bg-[#FEFBF3] px-2 py-0.5 rounded-[6px] border border-[#FAEFC1]">
+                        <Star size={11} className="fill-[#C69815] text-[#C69815]" />
+                        <span className="text-xs font-bold text-gray-900">{professional.rating}</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-[#2952AB] font-medium">{professional.title}</p>
+                    <span className="text-[11px] text-gray-500 block truncate mt-0.5">
+                      {business.name} • {branch.name}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-1">
+                  {professional.specialties.map((spec, i) => (
+                    <span
+                      key={i}
+                      className="text-[10px] bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full"
+                    >
+                      {spec}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+                  <span className="text-[11px] text-gray-500 font-medium">
+                    خبرة {professional.experienceYears} سنوات
+                  </span>
+                  <Link
+                    to={`/beauty/professional/${professional.id}`}
+                    className="py-1.5 px-3.5 bg-[#2952AB] text-white rounded-[8px] text-xs font-bold shadow-2xs hover:bg-[#1D3D7A] active:scale-95 flex items-center gap-1"
+                  >
+                    <span>عرض الملف والحجز</span>
+                    <ArrowRight size={13} className="rotate-180" />
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Featured Professionals Carousel (US-005, US-012, US-013) */}
         <div>
