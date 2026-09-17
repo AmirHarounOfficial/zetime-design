@@ -15,7 +15,6 @@ import {
   Eye,
   ShieldCheck,
   Home as HomeIcon,
-  Store,
   Users,
   CheckCircle2,
   Calendar,
@@ -24,7 +23,6 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
-import { BottomNav } from '../bottom-nav';
 import {
   beautyCategories,
   beautyBusinesses,
@@ -96,11 +94,11 @@ export function BeautyHomeModule() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F2F5FB] via-white to-[#FEFBF3] pb-28" dir="rtl">
+    <div className="min-h-screen bg-gradient-to-br from-[#F2F5FB] via-white to-[#FEFBF3] pb-10" dir="rtl">
       {/* Top Header */}
       <div className="bg-gradient-to-r from-white to-[#F2F5FB] px-4 pt-12 pb-4 border-b border-[#C2D1E8]/30 sticky top-0 z-20 backdrop-blur-md bg-white/90">
         <div className="max-w-md mx-auto">
-          {/* Bar with Back, Title, and Provider Hub Switcher */}
+          {/* Bar with Back & Title */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Link to="/" className="p-1 rounded-lg hover:bg-black/5 transition-colors">
@@ -114,15 +112,6 @@ export function BeautyHomeModule() {
                 <p className="text-xs text-[#2952AB]/70 font-medium">ZeTime Beauty • صالونات وسبا</p>
               </div>
             </div>
-
-            {/* Provider Hub Button */}
-            <Link
-              to="/beauty/provider-hub"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#2952AB] to-[#1D3D7A] text-white rounded-full text-xs font-semibold shadow-sm hover:shadow active:scale-95 transition-all"
-            >
-              <Store size={14} />
-              <span>بوابة الأعمال</span>
-            </Link>
           </div>
 
           {/* Search Bar & Filter Button */}
@@ -202,28 +191,68 @@ export function BeautyHomeModule() {
           </Link>
         )}
 
-        {/* Live Queue Ticket Notice (US-086, US-088, US-094) */}
-        <div className="bg-gradient-to-r from-[#2952AB] to-[#1D3D7A] rounded-[12px] p-3.5 text-white shadow-md flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center font-black text-sm text-[#FAEFC1] border border-white/20">
-              {mockBeautyQueueTicket.ticketNumber}
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <p className="text-xs font-bold text-white">طابور الانتظار السريع (Walk-In)</p>
-                <span className="text-[9px] bg-[#C69815] text-white px-1.5 py-0.2 rounded font-bold">مباشر</span>
+        {/* Organized Live Turn Tracking Card (بطاقة متابعة الدور المباشر) */}
+        <div className="bg-white rounded-[16px] border border-[#C2D1E8]/60 shadow-md hover:shadow-lg transition-all overflow-hidden">
+          {/* Card Top Header */}
+          <div className="bg-gradient-to-r from-[#1D3D7A] via-[#2952AB] to-[#1D3D7A] text-white px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-[#FAEFC1] border border-white/20">
+                <Clock size={16} />
               </div>
-              <p className="text-[11px] text-white/80">
-                أمامك {mockBeautyQueueTicket.customersAhead} عملاء • وقت الانتظار المقدر: ~{mockBeautyQueueTicket.estimatedWaitMinutes} دقيقة
-              </p>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <h3 className="font-bold text-xs text-white">بطاقة متابعة الدور المباشر</h3>
+                  <span className="w-2 h-2 rounded-full bg-green-400 animate-ping" />
+                </div>
+                <p className="text-[10px] text-white/80">{mockBeautyQueueTicket.businessName} • {mockBeautyQueueTicket.branchName}</p>
+              </div>
+            </div>
+            <div className="bg-white/15 border border-white/25 px-2.5 py-1 rounded-[8px] text-center font-mono">
+              <span className="text-[9px] text-[#FAEFC1] block font-sans">تذكرتك</span>
+              <strong className="text-sm font-black text-white">{mockBeautyQueueTicket.ticketNumber}</strong>
             </div>
           </div>
-          <Link
-            to={`/beauty/queue/${mockBeautyQueueTicket.businessId}`}
-            className="px-3 py-1.5 bg-[#C69815] hover:bg-[#A88012] text-white rounded-[8px] text-xs font-bold shadow transition-all active:scale-95"
-          >
-            متابعة دورك
-          </Link>
+
+          {/* 3 Metrics Row */}
+          <div className="p-4 space-y-3.5">
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="bg-[#F2F5FB] p-2.5 rounded-[10px] border border-[#C2D1E8]/40">
+                <span className="text-[10px] text-gray-500 block font-medium">ترتيبك في الدور</span>
+                <strong className="text-base font-black text-[#2952AB]">#{mockBeautyQueueTicket.position}</strong>
+              </div>
+              <div className="bg-[#F2F5FB] p-2.5 rounded-[10px] border border-[#C2D1E8]/40">
+                <span className="text-[10px] text-gray-500 block font-medium">أشخاص قبلك</span>
+                <strong className="text-base font-black text-gray-800">{mockBeautyQueueTicket.customersAhead} عملاء</strong>
+              </div>
+              <div className="bg-[#FEF8E7] p-2.5 rounded-[10px] border border-[#FAEFC1]">
+                <span className="text-[10px] text-[#8A680F] block font-medium">الوقت التقريبي</span>
+                <strong className="text-base font-black text-[#C69815]">~{mockBeautyQueueTicket.estimatedWaitMinutes} دقيقة</strong>
+              </div>
+            </div>
+
+            {/* Service & Smart Gap Insertion info */}
+            <div className="flex items-center justify-between text-xs px-1 text-gray-600">
+              <div className="flex items-center gap-1.5 truncate">
+                <Scissors size={13} className="text-[#2952AB] flex-shrink-0" />
+                <span className="font-semibold truncate text-gray-800">{mockBeautyQueueTicket.serviceName}</span>
+              </div>
+              {mockBeautyQueueTicket.insertedInGap && (
+                <span className="text-[10px] bg-[#FEF8E7] text-[#8A680F] border border-[#FAEFC1] px-2 py-0.5 rounded-full font-bold flex-shrink-0 flex items-center gap-1">
+                  <Zap size={11} className="text-[#C69815]" />
+                  <span>فراغ جدول ذكي</span>
+                </span>
+              )}
+            </div>
+
+            {/* CTA to Queue Details */}
+            <Link
+              to={`/beauty/queue/${mockBeautyQueueTicket.businessId}`}
+              className="w-full py-2.5 px-4 bg-gradient-to-r from-[#2952AB] to-[#1D3D7A] hover:from-[#1D3D7A] hover:to-[#2952AB] text-white rounded-[10px] text-xs font-bold text-center flex items-center justify-center gap-2 shadow-sm active:scale-98 transition-all"
+            >
+              <span>فتح تذكرة الانتظار وإدارة الحضور</span>
+              <ChevronLeft size={16} className="rotate-180" />
+            </Link>
+          </div>
         </div>
 
         {/* Filter Tabs Horizontal Scroll (US-006, US-007, US-008) */}
@@ -596,8 +625,6 @@ export function BeautyHomeModule() {
           </div>
         </div>
       )}
-
-      <BottomNav />
     </div>
   );
 }

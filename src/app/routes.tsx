@@ -63,7 +63,6 @@ import { BeautyProfessionalDetail } from './components/beauty/beauty-professiona
 import { BeautyBookingFlow } from './components/beauty/beauty-booking-flow';
 import { BeautyQueueView } from './components/beauty/beauty-queue-view';
 import { BeautyActivityDetail } from './components/beauty/beauty-activity-detail';
-import { BeautyProviderHub } from './components/beauty/beauty-provider-hub';
 
 export const router = createBrowserRouter([
   {
@@ -89,10 +88,6 @@ export const router = createBrowserRouter([
   {
     path: '/activity/beauty/:bookingId',
     Component: BeautyActivityDetail
-  },
-  {
-    path: '/beauty/provider-hub',
-    Component: BeautyProviderHub
   },
   {
     path: '/forgot-password',
