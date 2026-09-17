@@ -141,7 +141,7 @@ export function BeautyHomeModule() {
   const businessResults = useMemo(() => {
     let list = filterBusinesses(beautyBusinesses, filters);
     if (selectedQuickTab === 'favs') {
-      list = list.filter((b) => favorites.includes(b.id));
+      list = list.filter((item) => favorites.includes(item.business.id));
     }
     return list;
   }, [filters, selectedQuickTab, favorites]);
@@ -646,27 +646,26 @@ export function BeautyHomeModule() {
         {/* Dynamic Results: Mode 1 - Businesses */}
         {filters.viewMode === 'businesses' && currentCount > 0 && (
           <div className="space-y-4">
-            {businessResults.map((biz) => {
-              const nearestBranch = biz.branches.find((b) => b.isNearest) || biz.branches[0];
-              const isFav = favorites.includes(biz.id);
+            {businessResults.map(({ business, relevantBranch }) => {
+              const isFav = favorites.includes(business.id);
 
               return (
                 <div
-                  key={biz.id}
+                  key={business.id}
                   className="bg-white rounded-[14px] border border-[#C2D1E8]/40 shadow-md hover:shadow-lg transition-all overflow-hidden"
                 >
                   {/* Business Cover & Badges */}
                   <div className="relative h-36 w-full">
                     <img
-                      src={biz.coverUrls[0]}
-                      alt={biz.name}
+                      src={business.coverUrls[0]}
+                      alt={business.name}
                       className="w-full h-full object-cover"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
 
                     {/* Favorite Button */}
                     <button
-                      onClick={(e) => toggleFavorite(biz.id, e)}
+                      onClick={(e) => toggleFavorite(business.id, e)}
                       className="absolute top-2.5 left-2.5 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center text-gray-600 hover:text-red-500 shadow-sm transition-all"
                     >
                       <Heart
@@ -678,13 +677,13 @@ export function BeautyHomeModule() {
                     {/* Audience & Type Badge */}
                     <div className="absolute top-2.5 right-2.5 flex items-center gap-1">
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/60 backdrop-blur-sm text-white">
-                        {biz.audience === 'women'
+                        {business.audience === 'women'
                           ? 'نسائي'
-                          : biz.audience === 'men'
+                          : business.audience === 'men'
                           ? 'رجالي'
                           : 'للجميع'}
                       </span>
-                      {biz.type === 'FREELANCER' && (
+                      {business.type === 'FREELANCER' && (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#C69815] text-white">
                           مستقلة
                         </span>
@@ -694,12 +693,12 @@ export function BeautyHomeModule() {
                     {/* Rating Badge */}
                     <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-[8px] shadow-sm">
                       <Star size={13} className="fill-[#C69815] text-[#C69815]" />
-                      <span className="text-xs font-bold text-gray-900">{biz.rating}</span>
-                      <span className="text-[10px] text-gray-500">({biz.reviewsCount})</span>
+                      <span className="text-xs font-bold text-gray-900">{business.rating}</span>
+                      <span className="text-[10px] text-gray-500">({business.reviewsCount})</span>
                     </div>
 
                     {/* Home service tag */}
-                    {biz.services.some((s) => s.homeServiceAvailable) && (
+                    {business.services.some((s) => s.homeServiceAvailable) && (
                       <div className="absolute bottom-2.5 left-2.5 flex items-center gap-1 bg-green-600/90 text-white px-2 py-0.5 rounded-[6px] text-[10px] font-bold">
                         <HomeIcon size={11} />
                         <span>خدمة منزلية متوفرة</span>
@@ -711,27 +710,27 @@ export function BeautyHomeModule() {
                   <div className="p-4">
                     <div className="flex items-start gap-3">
                       <img
-                        src={biz.logoUrl}
-                        alt={biz.name}
+                        src={business.logoUrl}
+                        alt={business.name}
                         className="w-12 h-12 rounded-[10px] object-cover border border-[#C2D1E8]/40 shadow-sm flex-shrink-0"
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1">
-                          <h3 className="font-bold text-gray-900 text-sm truncate">{biz.name}</h3>
-                          {biz.verified && (
+                          <h3 className="font-bold text-gray-900 text-sm truncate">{business.name}</h3>
+                          {business.verified && (
                             <ShieldCheck size={16} className="text-[#2952AB] flex-shrink-0" />
                           )}
                         </div>
-                        <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{biz.description}</p>
+                        <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{business.description}</p>
                         <div className="flex items-center gap-2 mt-1 text-[11px] text-gray-600">
                           <span className="flex items-center gap-1 text-[#2952AB] font-medium">
                             <MapPin size={12} className="text-[#C69815]" />
-                            {nearestBranch.name} • {nearestBranch.distanceKm} كم
+                            {relevantBranch.name} • {relevantBranch.distanceKm} كم
                           </span>
                           <span>•</span>
                           <span className="flex items-center gap-1">
                             <Clock size={12} className="text-gray-400" />
-                            {nearestBranch.workingHours}
+                            {relevantBranch.workingHours}
                           </span>
                         </div>
                       </div>
@@ -739,7 +738,7 @@ export function BeautyHomeModule() {
 
                     {/* Popular Services Chips */}
                     <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-gray-100">
-                      {biz.services.slice(0, 3).map((srv) => (
+                      {business.services.slice(0, 3).map((srv) => (
                         <span
                           key={srv.serviceId}
                           className="text-[11px] bg-[#F2F5FB] text-[#2952AB] px-2.5 py-1 rounded-[6px] font-medium border border-[#C2D1E8]/30 flex items-center gap-1"
@@ -753,19 +752,19 @@ export function BeautyHomeModule() {
                     {/* Actions: Book Now & Live Queue */}
                     <div className="flex items-center gap-2 mt-3.5 pt-2">
                       <Link
-                        to={`/beauty/business/${biz.id}`}
+                        to={`/beauty/business/${business.id}?branchId=${relevantBranch.id}`}
                         className="flex-1 py-2.5 px-3 bg-[#2952AB] hover:bg-[#1D3D7A] text-white rounded-[10px] text-xs font-bold text-center shadow-sm active:scale-95 transition-all"
                       >
                         عرض الخدمات والحجز
                       </Link>
 
-                      {nearestBranch.queueActive && (
+                      {relevantBranch.queueActive && (
                         <Link
-                          to={`/beauty/queue/${biz.id}`}
+                          to={`/beauty/queue/${business.id}`}
                           className="py-2.5 px-3 bg-gradient-to-r from-[#FEF8E7] to-[#FAEFC1] text-[#8A680F] border border-[#C69815]/30 hover:border-[#C69815] rounded-[10px] text-xs font-bold text-center flex items-center gap-1 active:scale-95 transition-all"
                         >
                           <Zap size={13} className="text-[#C69815]" />
-                          <span>طابور فوري ({nearestBranch.currentQueueCount})</span>
+                          <span>طابور فوري ({relevantBranch.currentQueueCount})</span>
                         </Link>
                       )}
                     </div>
