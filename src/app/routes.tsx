@@ -72,7 +72,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/beauty/search',
-    Component: BeautySearchResults
+    Component: BeautyHomeModule
   },
   {
     path: '/beauty/business/:businessId',

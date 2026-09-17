@@ -27,7 +27,7 @@ import {
   ChevronDown,
   X,
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
   beautyCategories,
   beautyBusinesses,
@@ -70,7 +70,21 @@ const categoryIconMap: Record<string, any> = {
 
 export function BeautyHomeModule() {
   const navigate = useNavigate();
-  const [filters, setFilters] = useState<BeautyFilterState>(initialBeautyFilterState);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Initial query params from URL if navigated from search or external link
+  const initialQuery = searchParams.get('q') || '';
+  const initialCategory = searchParams.get('category') || 'all';
+  const initialService = searchParams.get('service') || 'all';
+  const initialView = (searchParams.get('view') as BeautyViewMode) || 'businesses';
+
+  const [filters, setFilters] = useState<BeautyFilterState>(() => ({
+    ...initialBeautyFilterState,
+    searchQuery: initialQuery,
+    categoryId: initialCategory,
+    serviceId: initialService,
+    viewMode: initialView,
+  }));
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [selectedQuickTab, setSelectedQuickTab] = useState('all');
@@ -163,6 +177,12 @@ export function BeautyHomeModule() {
       ? professionalResults.length
       : businessResults.length;
 
+  const isDiscoveryFiltered = Boolean(
+    filters.viewMode !== 'businesses' ||
+    filters.searchQuery.trim().length > 0 ||
+    activeFiltersCount > 0
+  );
+
   const handleSearchSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
   };
@@ -253,11 +273,95 @@ export function BeautyHomeModule() {
               />
             </div>
           )}
+
+          {/* Prominent 3 Discovery Mode Tabs directly at the Top */}
+          <div className="mt-3 pt-3 border-t border-[#C2D1E8]/30 space-y-2">
+            <div className="bg-[#F2F5FB] rounded-[12px] p-1 border border-[#C2D1E8]/50 flex items-center gap-1 shadow-xs">
+              {[
+                { id: 'businesses', label: 'الصالونات والمراكز', count: businessResults.length, icon: Store },
+                { id: 'services', label: 'الخدمات المتاحة', count: serviceResults.length, icon: Sparkles },
+                { id: 'professionals', label: 'الخبراء والمصففين', count: professionalResults.length, icon: UserCheck },
+              ].map((tab) => {
+                const Icon = tab.icon;
+                const isTabActive = filters.viewMode === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setFilters((prev) => ({ ...prev, viewMode: tab.id as BeautyViewMode }))}
+                    className={`flex-1 py-2 px-1 rounded-[9px] text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+                      isTabActive
+                        ? 'bg-[#2952AB] text-white shadow-sm'
+                        : 'text-gray-700 hover:bg-white/70'
+                    }`}
+                  >
+                    <Icon size={13} className={isTabActive ? 'text-[#C69815]' : 'text-gray-400'} />
+                    <span className="truncate">{tab.label}</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                        isTabActive ? 'bg-white/20 text-white' : 'bg-white text-gray-600 border border-gray-200'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Results Count & Sorting Toolbar */}
+            <div className="flex items-center justify-between text-xs px-1">
+              <span className="text-gray-500 font-medium">
+                عرض <strong className="text-gray-900 font-bold">{currentCount}</strong>{' '}
+                {filters.viewMode === 'services'
+                  ? 'خدمة متاحة'
+                  : filters.viewMode === 'professionals'
+                  ? 'أخصائي معتمد'
+                  : 'صالون ومركز'}
+              </span>
+
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowSortDropdown(!showSortDropdown)}
+                  className="flex items-center gap-1 text-[#2952AB] font-bold bg-white px-2.5 py-1 rounded-[8px] border border-[#C2D1E8]/50 shadow-2xs hover:bg-gray-50 transition-colors"
+                >
+                  <span>الترتيب: {sortLabels[filters.sortBy]}</span>
+                  <ChevronDown size={14} />
+                </button>
+
+                {showSortDropdown && (
+                  <div className="absolute left-0 mt-1 w-44 bg-white rounded-[10px] border border-[#C2D1E8] shadow-lg z-30 py-1 text-xs">
+                    {(Object.keys(sortLabels) as BeautySortOption[]).map((opt) => (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => {
+                          setFilters((prev) => ({ ...prev, sortBy: opt }));
+                          setShowSortDropdown(false);
+                        }}
+                        className={`w-full text-right px-3 py-2 font-medium transition-colors ${
+                          filters.sortBy === opt
+                            ? 'bg-[#F2F5FB] text-[#2952AB] font-bold'
+                            : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {sortLabels[opt]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="max-w-md mx-auto px-4 mt-4 space-y-5">
-        {/* Active Booking Live Banner (US-001) */}
+        {/* Overview Modules & Promotions (shown when browsing general businesses) */}
+        {!isDiscoveryFiltered && (
+          <>
+            {/* Active Booking Live Banner (US-001) */}
         {activeBooking && (
           <Link
             to={`/activity/beauty/${activeBooking.id}`}
@@ -516,82 +620,8 @@ export function BeautyHomeModule() {
             </Link>
           </div>
         </div>
-
-        {/* Discovery Modes Bar (3 View Modes) */}
-        <div className="bg-white rounded-[14px] p-1.5 border border-[#C2D1E8]/50 shadow-xs flex items-center gap-1">
-          {[
-            { id: 'businesses', label: 'الصالونات والمراكز', count: businessResults.length, icon: Store },
-            { id: 'services', label: 'الخدمات المتاحة', count: serviceResults.length, icon: Sparkles },
-            { id: 'professionals', label: 'الخبراء والمصففين', count: professionalResults.length, icon: UserCheck },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isTabActive = filters.viewMode === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setFilters((prev) => ({ ...prev, viewMode: tab.id as BeautyViewMode }))}
-                className={`flex-1 py-2 px-1.5 rounded-[10px] text-xs font-bold transition-all flex items-center justify-center gap-1 ${
-                  isTabActive
-                    ? 'bg-[#2952AB] text-white shadow-xs'
-                    : 'text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                <Icon size={13} className={isTabActive ? 'text-[#C69815]' : 'text-gray-400'} />
-                <span className="truncate">{tab.label}</span>
-                <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                    isTabActive ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Results Count & Sorting Toolbar */}
-        <div className="flex items-center justify-between text-xs px-1">
-          <span className="text-gray-500 font-medium">
-            عرض <strong className="text-gray-900 font-bold">{currentCount}</strong>{' '}
-            {filters.viewMode === 'services'
-              ? 'خدمة متاحة'
-              : filters.viewMode === 'professionals'
-              ? 'أخصائي معتمد'
-              : 'صالون ومركز'}
-          </span>
-
-          <div className="relative">
-            <button
-              onClick={() => setShowSortDropdown(!showSortDropdown)}
-              className="flex items-center gap-1 text-[#2952AB] font-bold bg-white px-2.5 py-1 rounded-[8px] border border-[#C2D1E8]/50 shadow-2xs hover:bg-gray-50 transition-colors"
-            >
-              <span>الترتيب: {sortLabels[filters.sortBy]}</span>
-              <ChevronDown size={14} />
-            </button>
-
-            {showSortDropdown && (
-              <div className="absolute left-0 mt-1 w-44 bg-white rounded-[10px] border border-[#C2D1E8] shadow-lg z-20 py-1 text-xs">
-                {(Object.keys(sortLabels) as BeautySortOption[]).map((opt) => (
-                  <button
-                    key={opt}
-                    onClick={() => {
-                      setFilters((prev) => ({ ...prev, sortBy: opt }));
-                      setShowSortDropdown(false);
-                    }}
-                    className={`w-full text-right px-3 py-2 font-medium transition-colors ${
-                      filters.sortBy === opt
-                        ? 'bg-[#F2F5FB] text-[#2952AB] font-bold'
-                        : 'text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    {sortLabels[opt]}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+      </>
+    )}
 
         {/* Empty State */}
         {currentCount === 0 && (
