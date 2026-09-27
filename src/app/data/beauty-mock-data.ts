@@ -34,6 +34,9 @@ export interface BeautyProfessional {
   branchId: string;
   branchName: string;
   homeServiceAvailable: boolean;
+  workingHoursDisplay?: string;
+  shiftStartHour?: number;
+  shiftEndHour?: number;
   status: 'ACTIVE' | 'INACTIVE' | 'TRANSFER_PENDING';
   bio: string;
 }
@@ -54,6 +57,8 @@ export interface BeautyBranch {
   currentQueueCount: number;
   estimatedWaitMins: number;
   supportedHomeAreas: string[];
+  maxHomeDeliveryKm?: number;
+  homeDeliveryBaseFee?: number;
 }
 
 export interface BeautyBranchService {
@@ -390,7 +395,9 @@ export const beautyBusinesses: BeautyBusiness[] = [
         queueActive: true,
         currentQueueCount: 3,
         estimatedWaitMins: 25,
-        supportedHomeAreas: ['العليا', 'السليمانية', 'الملقا', 'النخيل', 'حطين'],
+        supportedHomeAreas: ['العليا', 'السليمانية', 'الملقا', 'النخيل', 'حطين', 'الياسمين', 'الورود'],
+        maxHomeDeliveryKm: 25,
+        homeDeliveryBaseFee: 40,
       },
       {
         id: 'br-lumiere-nakheel',
@@ -406,7 +413,9 @@ export const beautyBusinesses: BeautyBusiness[] = [
         queueActive: true,
         currentQueueCount: 1,
         estimatedWaitMins: 10,
-        supportedHomeAreas: ['النخيل', 'الرائد', 'حطين', 'الصحافة'],
+        supportedHomeAreas: ['النخيل', 'الرائد', 'حطين', 'الصحافة', 'العقيق'],
+        maxHomeDeliveryKm: 25,
+        homeDeliveryBaseFee: 40,
       },
     ],
     services: [
@@ -433,6 +442,17 @@ export const beautyBusinesses: BeautyBusiness[] = [
         confirmationMode: 'AUTOMATIC',
         homeServiceAvailable: true,
         popular: true,
+      },
+      {
+        serviceId: 'ms-hair-balayage',
+        name: 'صبغة بلياج وسحب لون احترافي مع حوض معالجة',
+        nameEn: 'Professional Balayage & Treatment Station',
+        categoryId: 'hair',
+        price: 550,
+        durationMin: 120,
+        confirmationMode: 'MANUAL',
+        homeServiceAvailable: false, // In-salon only!
+        popular: false,
       },
       {
         serviceId: 'ms-manicure-pedicure',
@@ -468,6 +488,40 @@ export const beautyBusinesses: BeautyBusiness[] = [
         confirmationMode: 'MANUAL',
         homeServiceAvailable: true,
       },
+      {
+        serviceId: 'ms-glam-makeup',
+        name: 'مكياج سهرة ناعم وفخم مع رموش',
+        nameEn: 'Evening Glam Makeup with Lashes',
+        categoryId: 'makeup',
+        price: 350,
+        homePrice: 450,
+        durationMin: 60,
+        confirmationMode: 'AUTOMATIC',
+        homeServiceAvailable: true,
+        popular: true,
+      },
+      {
+        serviceId: 'ms-relax-massage',
+        name: 'مساج سويدي استرخائي بالزيوت العطرية',
+        nameEn: 'Swedish Aromatherapy Relaxing Massage',
+        categoryId: 'spa-massage',
+        price: 260,
+        homePrice: 340,
+        durationMin: 50,
+        confirmationMode: 'AUTOMATIC',
+        homeServiceAvailable: true,
+      },
+      {
+        serviceId: 'ms-moroccan-bath',
+        name: 'حمام مغربي ملكي مع بخار وتدليك',
+        nameEn: 'Royal Moroccan Steam Bath & Scrub',
+        categoryId: 'spa-massage',
+        price: 380,
+        durationMin: 75,
+        confirmationMode: 'AUTOMATIC',
+        homeServiceAvailable: false, // In-salon only!
+        popular: true,
+      },
     ],
     professionals: [
       {
@@ -486,6 +540,9 @@ export const beautyBusinesses: BeautyBusiness[] = [
         branchId: 'br-lumiere-olaya',
         branchName: 'فرع العليا',
         homeServiceAvailable: true,
+        workingHoursDisplay: '10:00 ص - 05:00 م',
+        shiftStartHour: 10,
+        shiftEndHour: 17,
         status: 'ACTIVE',
         bio: 'خبرة تزيد عن 8 سنوات في أرقى صالونات باريس ودبي، متخصصة في اختيار القصة واللون الأنسب لملامح الوجه.',
       },
@@ -505,6 +562,9 @@ export const beautyBusinesses: BeautyBusiness[] = [
         branchId: 'br-lumiere-olaya',
         branchName: 'فرع العليا',
         homeServiceAvailable: true,
+        workingHoursDisplay: '01:00 م - 09:00 م',
+        shiftStartHour: 13,
+        shiftEndHour: 21,
         status: 'ACTIVE',
         bio: 'معتمدة دولياً في تقنيات الجل الروسي والعناية الطبية بالأظافر والسبا الطبيعي.',
       },
@@ -521,11 +581,58 @@ export const beautyBusinesses: BeautyBusiness[] = [
         languages: ['العربية'],
         specialties: ['تنظيف هايدرافاشيال', 'علاج التصبغات', 'مساج الوجه باليشم'],
         businessId: 'biz-lumiere',
-        branchId: 'br-lumiere-nakheel',
-        branchName: 'فرع النخيل',
-        homeServiceAvailable: false,
+        branchId: 'br-lumiere-olaya',
+        branchName: 'فرع العليا',
+        homeServiceAvailable: false, // In-salon only!
+        workingHoursDisplay: '11:00 ص - 07:00 م',
+        shiftStartHour: 11,
+        shiftEndHour: 19,
         status: 'ACTIVE',
         bio: 'أخصائية معتمدة في تقنيات النضارة الفورية واستعادة حيوية البشرة المجهدة.',
+      },
+      {
+        id: 'pro-reem',
+        name: 'ريم الدوسري',
+        nameEn: 'Reem Al-Dawsari',
+        title: 'خبيرة مكياج وتجميل سينمائي وعرائس',
+        titleEn: 'Senior Makeup & Glam Artist',
+        photoUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&auto=format&fit=crop&q=80',
+        rating: 4.97,
+        reviewsCount: 189,
+        experienceYears: 7,
+        languages: ['العربية', 'English'],
+        specialties: ['مكياج سهرة وفخم', 'كونتور ونحت الوجه', 'تركيب رموش'],
+        businessId: 'biz-lumiere',
+        branchId: 'br-lumiere-olaya',
+        branchName: 'فرع العليا',
+        homeServiceAvailable: true,
+        workingHoursDisplay: '03:00 م - 11:00 م',
+        shiftStartHour: 15,
+        shiftEndHour: 23,
+        status: 'ACTIVE',
+        bio: 'خبيرة مكياج محترفة حاصلة على جوائز إقليمية في إبراز الجمال الطبيعي ومكياج المناسبات.',
+      },
+      {
+        id: 'pro-mona',
+        name: 'منى العتيبي',
+        nameEn: 'Mona Al-Otaibi',
+        title: 'أخصائية استرخاء وعلاج طبيعي ومساج',
+        titleEn: 'Certified Massage Therapist',
+        photoUrl: 'https://images.unsplash.com/photo-1594744803329-e58b31de8bf5?w=200&auto=format&fit=crop&q=80',
+        rating: 4.91,
+        reviewsCount: 142,
+        experienceYears: 6,
+        languages: ['العربية'],
+        specialties: ['مساج سويدي', 'علاج إجهاد الرقبة والأكتاف', 'زيوت طبيعية'],
+        businessId: 'biz-lumiere',
+        branchId: 'br-lumiere-olaya',
+        branchName: 'فرع العليا',
+        homeServiceAvailable: true,
+        workingHoursDisplay: '02:00 م - 10:00 م',
+        shiftStartHour: 14,
+        shiftEndHour: 22,
+        status: 'ACTIVE',
+        bio: 'متخصصة في المساج الاسترخائي والتدليك بالزيوت الساخنة المهدئة للأعصاب والعضلات.',
       },
     ],
     reviews: [

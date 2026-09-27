@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router';
 import {
   ChevronLeft,
@@ -8,6 +8,7 @@ import {
   Phone,
   ShieldCheck,
   Home as HomeIcon,
+  Store,
   Sparkles,
   Scissors,
   Check,
@@ -21,6 +22,9 @@ import {
   Info,
   ChevronDown,
   Building,
+  AlertCircle,
+  CheckCircle2,
+  Navigation,
 } from 'lucide-react';
 import { beautyBusinesses, BeautyBranchService, BeautyBranch } from '../../data/beauty-mock-data';
 
@@ -38,12 +42,52 @@ export function BeautyBusinessDetail() {
   // Active Tab
   const [activeTab, setActiveTab] = useState<'services' | 'team' | 'reviews' | 'about'>('services');
 
+  // Initial Location Selection Mode: Salon vs. Home (Crucial: selected before choosing specific services)
+  const [locationMode, setLocationMode] = useState<'IN_BRANCH' | 'AT_HOME'>('IN_BRANCH');
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [locationNotice, setLocationNotice] = useState<string | null>(null);
+
   // Multi-service selection cart (US-052)
   const [selectedServices, setSelectedServices] = useState<BeautyBranchService[]>([]);
   const [isFavorite, setIsFavorite] = useState(false);
 
+  // Category labels and icons dictionary
+  const categoryMeta: Record<string, { name: string; icon: string }> = {
+    'hair': { name: 'شعر وتسريحات', icon: '✂️' },
+    'nails': { name: 'أظافر ومانيكير', icon: '💅' },
+    'facial-skincare': { name: 'بشرة وعناية', icon: '💆‍♀️' },
+    'makeup': { name: 'مكياج وسهرات', icon: '💄' },
+    'spa-massage': { name: 'مساج وسبا', icon: '🌿' },
+    'barber': { name: 'حلاقة رجالية', icon: '💈' },
+  };
+
+  // Switch location mode (Salon vs. Home)
+  const handleLocationModeChange = (mode: 'IN_BRANCH' | 'AT_HOME') => {
+    if (mode === locationMode) return;
+    setLocationMode(mode);
+
+    // If switching to home, remove any services that are not available at home
+    if (mode === 'AT_HOME') {
+      const incompatibleServices = selectedServices.filter((s) => !s.homeServiceAvailable);
+      if (incompatibleServices.length > 0) {
+        setSelectedServices(selectedServices.filter((s) => s.homeServiceAvailable));
+        setLocationNotice(`تمت إزالة ${incompatibleServices.length} خدمة مخصصة للصالون فقط من السلة.`);
+        setTimeout(() => setLocationNotice(null), 4000);
+      }
+    } else {
+      setLocationNotice(null);
+    }
+  };
+
   // Toggle service selection
   const toggleService = (service: BeautyBranchService) => {
+    // If in home mode and service is not home available, prevent adding
+    if (locationMode === 'AT_HOME' && !service.homeServiceAvailable) {
+      setLocationNotice(`عذراً، خدمة "${service.name}" تتطلب تجهيزات الصالون الخاصة ولا يمكن تقديمها منزلياً.`);
+      setTimeout(() => setLocationNotice(null), 3500);
+      return;
+    }
+
     if (selectedServices.some((s) => s.serviceId === service.serviceId)) {
       setSelectedServices(selectedServices.filter((s) => s.serviceId !== service.serviceId));
     } else {
@@ -51,13 +95,44 @@ export function BeautyBusinessDetail() {
     }
   };
 
-  const totalPrice = selectedServices.reduce((sum, s) => sum + s.price, 0);
+  // Computed Categories with counts based on active mode
+  const availableCategories = useMemo(() => {
+    const counts = new Map<string, number>();
+    business.services.forEach((s) => {
+      // In home mode, count only home available
+      if (locationMode === 'AT_HOME' && !s.homeServiceAvailable) return;
+      counts.set(s.categoryId, (counts.get(s.categoryId) || 0) + 1);
+    });
+
+    const list = Array.from(counts.entries()).map(([catId, count]) => ({
+      id: catId,
+      name: categoryMeta[catId]?.name || catId,
+      icon: categoryMeta[catId]?.icon || '✨',
+      count,
+    }));
+
+    return list;
+  }, [business.services, locationMode]);
+
+  // Filtered services based on Category & Location Mode
+  const filteredServices = useMemo(() => {
+    return business.services.filter((s) => {
+      const matchCategory = selectedCategory === 'ALL' || s.categoryId === selectedCategory;
+      return matchCategory;
+    });
+  }, [business.services, selectedCategory]);
+
+  const totalPrice = selectedServices.reduce((sum, s) => {
+    const currentPrice = locationMode === 'AT_HOME' && s.homePrice ? s.homePrice : s.price;
+    return sum + currentPrice;
+  }, 0);
+
   const totalDuration = selectedServices.reduce((sum, s) => sum + s.durationMin, 0);
 
   const handleProceedToBooking = () => {
     if (selectedServices.length === 0) return;
     const serviceIds = selectedServices.map((s) => s.serviceId).join(',');
-    navigate(`/beauty/book/${business.id}?branchId=${selectedBranch.id}&services=${serviceIds}`);
+    navigate(`/beauty/book/${business.id}?branchId=${selectedBranch.id}&mode=${locationMode}&services=${serviceIds}`);
   };
 
   return (
@@ -224,82 +299,247 @@ export function BeautyBusinessDetail() {
         <div className="p-4">
           {/* TAB 1: Services List & Multi-select (US-038, US-052) */}
           {activeTab === 'services' && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between px-1">
-                <p className="text-xs text-gray-500 font-medium">
-                  يمكنك تحديد خدمة واحدة أو عدة خدمات معاً لحجز موعد موحد
+            <div className="space-y-3.5">
+              {/* Step 0 / Initial Choice: Service Location Selector (Salon vs. Home) */}
+              <div className="bg-white rounded-[14px] p-3.5 border border-[#C2D1E8]/50 shadow-xs">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-full bg-[#2952AB] text-white text-[11px] font-bold flex items-center justify-center">
+                      1
+                    </span>
+                    <h3 className="font-bold text-xs text-gray-900">اختر مكان تقديم الخدمة أولاً:</h3>
+                  </div>
+                  <span className="text-[10px] text-gray-500 font-medium">
+                    {locationMode === 'IN_BRANCH' ? 'أسعار الصالون' : 'أسعار الخدمة المنزلية'}
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-gray-500 mb-2.5 leading-relaxed">
+                  يرجى تحديد رغبتك قبل اختيار الخدمات، حيث تختلف الخدمات المتاحة والأسعار بحسب التجهيزات المطلوبة.
                 </p>
-              </div>
 
-              {business.services.map((srv) => {
-                const isSelected = selectedServices.some((s) => s.serviceId === srv.serviceId);
-
-                return (
-                  <div
-                    key={srv.serviceId}
-                    onClick={() => toggleService(srv)}
-                    className={`p-3.5 rounded-[12px] border transition-all cursor-pointer bg-white ${
-                      isSelected
-                        ? 'border-[#2952AB] shadow-md ring-1 ring-[#2952AB] bg-[#F2F5FB]/30'
-                        : 'border-[#C2D1E8]/40 hover:border-[#2952AB]/30 shadow-sm'
+                {/* Segmented Location Buttons */}
+                <div className="grid grid-cols-2 gap-2 bg-[#F2F5FB] p-1 rounded-[12px] border border-[#C2D1E8]/40">
+                  <button
+                    type="button"
+                    onClick={() => handleLocationModeChange('IN_BRANCH')}
+                    className={`py-2.5 px-3 rounded-[10px] text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                      locationMode === 'IN_BRANCH'
+                        ? 'bg-[#2952AB] text-white shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-sm text-gray-900">{srv.name}</h4>
-                          {srv.popular && (
-                            <span className="text-[10px] bg-[#FEF8E7] text-[#C69815] px-2 py-0.5 rounded-full font-bold border border-[#FAEFC1]">
-                              الأكثر طلباً
+                    <Store size={16} />
+                    <span>في الصالون (Salon)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleLocationModeChange('AT_HOME')}
+                    className={`py-2.5 px-3 rounded-[10px] text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                      locationMode === 'AT_HOME'
+                        ? 'bg-[#2952AB] text-white shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <HomeIcon size={16} />
+                    <span>خدمة منزلية (Home)</span>
+                  </button>
+                </div>
+
+                {/* Location Mode Context Banner */}
+                {locationMode === 'AT_HOME' ? (
+                  <div className="mt-2.5 p-2.5 bg-[#FEFBF3] rounded-[9px] border border-[#FAEFC1] flex items-center justify-between text-[11px] text-[#8A680F]">
+                    <div className="flex items-center gap-1.5">
+                      <MapPin size={14} className="text-[#C69815] flex-shrink-0" />
+                      <span>تصلك خبيرات الصالون لمنزلك • رسوم الانتقال (40 ر.س) تُعرض عند الدفع</span>
+                    </div>
+                    <span className="text-[10px] bg-[#C69815] text-white font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
+                      نطاق 25 كم
+                    </span>
+                  </div>
+                ) : (
+                  <div className="mt-2.5 p-2.5 bg-[#F2F5FB] rounded-[9px] border border-[#C2D1E8]/40 flex items-center justify-between text-[11px] text-[#2952AB]">
+                    <div className="flex items-center gap-1.5">
+                      <Building size={14} className="text-[#2952AB] flex-shrink-0" />
+                      <span>تقديم الخدمة داخل {selectedBranch.name} • جميع مرافق الصالون متاحة</span>
+                    </div>
+                    <span className="text-[10px] bg-[#2952AB]/10 font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
+                      تأكيد مباشر
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Toast / Warning Notification */}
+              {locationNotice && (
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-[10px] text-xs text-amber-900 flex items-center gap-2 animate-fadeIn">
+                  <AlertCircle size={15} className="text-amber-600 flex-shrink-0" />
+                  <span>{locationNotice}</span>
+                </div>
+              )}
+
+              {/* Service Categories Display */}
+              <div>
+                <div className="flex items-center justify-between px-1 mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-full bg-[#2952AB] text-white text-[11px] font-bold flex items-center justify-center">
+                      2
+                    </span>
+                    <h4 className="font-bold text-xs text-gray-900">أقسام وتصنيفات الخدمات:</h4>
+                  </div>
+                  <span className="text-[11px] text-gray-500">
+                    {filteredServices.length} خدمة متوفرة
+                  </span>
+                </div>
+
+                {/* Category Horizontal Filter Chips */}
+                <div className="flex gap-1.5 overflow-x-auto pb-1.5 no-scrollbar">
+                  <button
+                    onClick={() => setSelectedCategory('ALL')}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                      selectedCategory === 'ALL'
+                        ? 'bg-[#2952AB] text-white shadow-xs'
+                        : 'bg-white text-gray-700 border border-[#C2D1E8]/50 hover:bg-[#F2F5FB]'
+                    }`}
+                  >
+                    <span>⭐ الكل</span>
+                    <span className="text-[10px] opacity-80">({business.services.length})</span>
+                  </button>
+
+                  {availableCategories.map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setSelectedCategory(cat.id)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                        selectedCategory === cat.id
+                          ? 'bg-[#2952AB] text-white shadow-xs'
+                          : 'bg-white text-gray-700 border border-[#C2D1E8]/50 hover:bg-[#F2F5FB]'
+                      }`}
+                    >
+                      <span>{cat.icon}</span>
+                      <span>{cat.name}</span>
+                      <span className="text-[10px] opacity-80">({cat.count})</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Services Cards List */}
+              <div className="space-y-2.5">
+                {filteredServices.map((srv) => {
+                  const isSelected = selectedServices.some((s) => s.serviceId === srv.serviceId);
+                  const isHomeOnlyUnavailable = locationMode === 'AT_HOME' && !srv.homeServiceAvailable;
+                  const activePrice = locationMode === 'AT_HOME' && srv.homePrice ? srv.homePrice : srv.price;
+
+                  return (
+                    <div
+                      key={srv.serviceId}
+                      onClick={() => toggleService(srv)}
+                      className={`p-3.5 rounded-[12px] border transition-all ${
+                        isHomeOnlyUnavailable
+                          ? 'bg-gray-50/80 border-dashed border-gray-300 opacity-75 cursor-not-allowed'
+                          : isSelected
+                          ? 'border-[#2952AB] shadow-md ring-1 ring-[#2952AB] bg-[#F2F5FB]/30 cursor-pointer'
+                          : 'border-[#C2D1E8]/40 hover:border-[#2952AB]/30 shadow-sm bg-white cursor-pointer'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4
+                              className={`font-bold text-sm ${
+                                isHomeOnlyUnavailable ? 'text-gray-500' : 'text-gray-900'
+                              }`}
+                            >
+                              {srv.name}
+                            </h4>
+                            {srv.popular && (
+                              <span className="text-[10px] bg-[#FEF8E7] text-[#C69815] px-2 py-0.5 rounded-full font-bold border border-[#FAEFC1]">
+                                الأكثر طلباً
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                            <span className="flex items-center gap-1">
+                              <Clock size={12} className="text-[#2952AB]" />
+                              {srv.durationMin} دقيقة
                             </span>
+                            <span>•</span>
+                            <span>
+                              تأكيد{' '}
+                              {srv.confirmationMode === 'AUTOMATIC' ? (
+                                <strong className="text-green-600">فوري</strong>
+                              ) : (
+                                <strong className="text-orange-600">خلال مهلة 25%</strong>
+                              )}
+                            </span>
+                          </div>
+
+                          {/* Dynamic Location Eligibility Tag */}
+                          {locationMode === 'AT_HOME' ? (
+                            srv.homeServiceAvailable ? (
+                              <div className="flex items-center gap-1.5 text-[11px] text-green-700 mt-2 font-medium bg-green-50 px-2 py-0.5 rounded w-fit">
+                                <HomeIcon size={12} className="text-green-600" />
+                                <span>جاهز لتقديم الخدمة في منزلك</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5 text-[11px] text-amber-700 mt-2 font-semibold bg-amber-50 px-2 py-0.5 rounded border border-amber-200/80 w-fit">
+                                <Building size={12} className="text-amber-600" />
+                                <span>متاح بالصالون فقط • يتطلب تجهيزات الصالون الخاصة</span>
+                              </div>
+                            )
+                          ) : (
+                            srv.homeServiceAvailable && (
+                              <div className="flex items-center gap-1 text-[11px] text-gray-500 mt-1.5 font-medium">
+                                <HomeIcon size={12} className="text-gray-400" />
+                                <span>متاح أيضاً بالمنزل ({srv.homePrice} ر.س)</span>
+                              </div>
+                            )
                           )}
                         </div>
 
-                        <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                          <span className="flex items-center gap-1">
-                            <Clock size={12} className="text-[#2952AB]" />
-                            {srv.durationMin} دقيقة
-                          </span>
-                          <span>•</span>
-                          <span>
-                            تأكيد{' '}
-                            {srv.confirmationMode === 'AUTOMATIC' ? (
-                              <strong className="text-green-600">فوري</strong>
-                            ) : (
-                              <strong className="text-orange-600">خلال مهلة 25%</strong>
-                            )}
-                          </span>
-                        </div>
-
-                        {srv.homeServiceAvailable && (
-                          <div className="flex items-center gap-1 text-[11px] text-gray-600 mt-1.5 font-medium">
-                            <HomeIcon size={12} className="text-[#2952AB]" />
-                            <span>متاح بالمنزل: {srv.homePrice} ر.س</span>
+                        {/* Price & Selection Checkbox */}
+                        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                          <div className="text-right">
+                            <span
+                              className={`text-base font-extrabold ${
+                                isHomeOnlyUnavailable ? 'text-gray-400' : 'text-gray-900'
+                              }`}
+                            >
+                              {activePrice}
+                            </span>
+                            <span className="text-xs text-gray-500 mr-1">ر.س</span>
+                            <span className="block text-[9px] text-gray-400">
+                              {locationMode === 'AT_HOME' ? 'سعر المنزل' : 'سعر الصالون'}
+                            </span>
                           </div>
-                        )}
-                      </div>
 
-                      {/* Price & Selection Checkbox */}
-                      <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                        <div className="text-right">
-                          <span className="text-base font-extrabold text-gray-900">{srv.price}</span>
-                          <span className="text-xs text-gray-500 mr-1">ر.س</span>
-                        </div>
-
-                        <div
-                          className={`w-6 h-6 rounded-[6px] border flex items-center justify-center transition-all ${
-                            isSelected
-                              ? 'bg-[#2952AB] border-[#2952AB] text-white shadow-sm'
-                              : 'border-[#C2D1E8] bg-white'
-                          }`}
-                        >
-                          {isSelected && <Check size={14} strokeWidth={2.5} />}
+                          {isHomeOnlyUnavailable ? (
+                            <div
+                              className="w-6 h-6 rounded-[6px] border border-gray-300 bg-gray-100 flex items-center justify-center text-gray-400"
+                              title="غير متاح بالخدمة المنزلية"
+                            >
+                              <Building size={13} />
+                            </div>
+                          ) : (
+                            <div
+                              className={`w-6 h-6 rounded-[6px] border flex items-center justify-center transition-all ${
+                                isSelected
+                                  ? 'bg-[#2952AB] border-[#2952AB] text-white shadow-sm'
+                                  : 'border-[#C2D1E8] bg-white'
+                              }`}
+                            >
+                              {isSelected && <Check size={14} strokeWidth={2.5} />}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -482,20 +722,28 @@ export function BeautyBusinessDetail() {
                 <span className="w-6 h-6 rounded-full bg-[#2952AB] text-white text-xs font-bold flex items-center justify-center">
                   {selectedServices.length}
                 </span>
-                <span className="text-xs font-bold text-gray-900">خدمات محددة</span>
-                <span className="text-xs text-gray-500">({totalDuration} دقيقة)</span>
+                <span className="text-xs font-bold text-gray-900">
+                  {locationMode === 'AT_HOME' ? 'خدمات منزلية' : 'خدمات بالصالون'}
+                </span>
+                <span className="text-[11px] text-gray-500">({totalDuration} دقيقة)</span>
               </div>
-              <div className="mt-0.5">
-                <span className="text-lg font-black text-[#2952AB]">{totalPrice}</span>
-                <span className="text-xs text-gray-600 mr-1">ر.س الإجمالي</span>
+              <div className="mt-0.5 flex items-baseline gap-1">
+                <span className="text-xl font-black text-[#2952AB]">{totalPrice}</span>
+                <span className="text-xs text-gray-600">ر.س</span>
+                {locationMode === 'AT_HOME' && (
+                  <span className="text-[10px] text-amber-700 bg-amber-50 px-1 rounded">
+                    + رسوم التوصيل
+                  </span>
+                )}
               </div>
             </div>
 
             <button
               onClick={handleProceedToBooking}
-              className="py-3 px-6 bg-gradient-to-r from-[#2952AB] to-[#1D3D7A] text-white rounded-[10px] text-sm font-bold shadow-md hover:shadow-lg active:scale-95 transition-all"
+              className="py-3 px-5 bg-gradient-to-r from-[#2952AB] to-[#1D3D7A] text-white rounded-[10px] text-xs font-bold shadow-md hover:shadow-lg active:scale-95 transition-all flex items-center gap-1.5"
             >
-              متابعة الحجز &larr;
+              <span>{locationMode === 'AT_HOME' ? 'حجز خدمة منزلية' : 'حجز في الصالون'}</span>
+              <span>&larr;</span>
             </button>
           </div>
         </div>
