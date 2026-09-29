@@ -87,12 +87,14 @@ export function BeautyBookingFlow() {
   }, [business.services, modeParam, serviceIdsParam]);
 
   const proIdParam = searchParams.get('proId');
+  const dateParam = searchParams.get('date');
+  const timeParam = searchParams.get('time');
 
   // Booking Flow States
   const [selectedServices, setSelectedServices] = useState<BeautyBranchService[]>(initialServices);
-  const [selectedDate, setSelectedDate] = useState('2026-09-17'); // Tomorrow
+  const [selectedDate, setSelectedDate] = useState(dateParam || '2026-09-17');
   const [selectedTimeSlot, setSelectedTimeSlot] = useState(
-    modeParam === 'AT_HOME' ? '13:00' : '15:00'
+    timeParam || (modeParam === 'AT_HOME' ? '13:00' : '15:00')
   );
   const [paymentMethod, setPaymentMethod] = useState<'APPLE_PAY' | 'ONLINE' | 'CARD_AT_PROVIDER' | 'CASH'>('APPLE_PAY');
   const [customerNotes, setCustomerNotes] = useState('');
@@ -413,7 +415,7 @@ export function BeautyBookingFlow() {
             {serviceLocationMode === 'IN_BRANCH' ? (
               <span>1. الخدمات ← 2. الوقت ← 3. الأخصائي ← 4. الدفع</span>
             ) : (
-              <span>1. نطاق الموقع ← 2. وقت الانتقال ← 3. الخدمات والأخصائي ← 4. النقل والدفع</span>
+              <span>1. تاريخ ووقت الزيارة ← 2. نطاق الموقع ← 3. الخدمات والأخصائي ← 4. النقل والدفع</span>
             )}
           </div>
         </div>
@@ -630,12 +632,74 @@ export function BeautyBookingFlow() {
         {/* ========================================================================= */}
         {serviceLocationMode === 'AT_HOME' && (
           <>
-            {/* STEP 1: Specify Location & Range Checker */}
-            <div className="bg-white rounded-[14px] p-4 border border-[#C2D1E8]/40 shadow-sm space-y-3">
+            {/* STEP 1: Date and Time Selection for Home Service FIRST */}
+            <div className="bg-white rounded-[14px] p-4 border-2 border-[#2952AB]/30 shadow-sm space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-5 h-5 rounded-full bg-[#2952AB] text-white text-[11px] font-bold flex items-center justify-center">
                     1
+                  </span>
+                  <h3 className="font-bold text-xs text-gray-900">اختر موعد الخدمة المنزلية أولاً</h3>
+                </div>
+                <span className="text-[10px] bg-blue-50 text-[#2952AB] font-bold px-2 py-0.5 rounded border border-blue-200">
+                  مطلوب أولاً لتحديد التوفر
+                </span>
+              </div>
+
+              <p className="text-[11px] text-gray-600 leading-relaxed">
+                في الخدمة المنزلية، تحديد الوقت أولاً يتيح لك رؤية الخدمات والطاقم المتوفر للزيارة المنزلية بدقة.
+              </p>
+
+              {/* Date Picker */}
+              <div>
+                <label className="text-[11px] text-gray-700 font-bold block mb-1.5">اختر تاريخ الزيارة المنزلية:</label>
+                <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                  {dateOptions.map((opt) => (
+                    <button
+                      key={opt.date}
+                      onClick={() => setSelectedDate(opt.date)}
+                      className={`flex-1 min-w-[70px] p-2.5 rounded-[10px] border text-center transition-all ${
+                        selectedDate === opt.date
+                          ? 'bg-[#2952AB] text-white border-[#2952AB] shadow-sm'
+                          : 'bg-white text-gray-700 border-gray-200 hover:border-[#2952AB]/30'
+                      }`}
+                    >
+                      <span className="text-[10px] block opacity-80">{opt.dayName}</span>
+                      <span className="text-xs font-bold block mt-0.5">{opt.day}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Home Dispatch Slots */}
+              <div>
+                <label className="text-[11px] text-gray-700 font-bold block mb-1.5">
+                  اختر وقت وصول الفريق لمنزلك ({selectedTimeSlot}):
+                </label>
+                <div className="grid grid-cols-5 gap-2">
+                  {homeDispatchSlots.map((slot) => (
+                    <button
+                      key={slot}
+                      onClick={() => setSelectedTimeSlot(slot)}
+                      className={`py-2 rounded-[8px] text-xs font-bold border transition-all ${
+                        selectedTimeSlot === slot
+                          ? 'bg-[#C69815] text-white border-[#C69815] shadow-sm'
+                          : 'bg-gray-50 text-gray-800 border-gray-200 hover:bg-[#FEFBF3]'
+                      }`}
+                    >
+                      {slot}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* STEP 2: Specify Location & Range Checker */}
+            <div className="bg-white rounded-[14px] p-4 border border-[#C2D1E8]/40 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-[#2952AB] text-white text-[11px] font-bold flex items-center justify-center">
+                    2
                   </span>
                   <h3 className="font-bold text-xs text-gray-900">تحديد موقعك ونطاق الخدمة</h3>
                 </div>
@@ -719,61 +783,6 @@ export function BeautyBookingFlow() {
                     ? `موقعك يبعد ${customDistanceKm.toFixed(1)} كم عن فرع ${selectedBranch.name}. رسوم النقل والتوصيل (40 ر.س) تُعرض في مرحلة الدفع.`
                     : `المسافة (${customDistanceKm.toFixed(1)} كم) تتجاوز الحد الأقصى لنطاق التوصيل (${maxServiceRangeKm} كم). يرجى اختيار فرع أقرب أو تعديل العنوان.`}
                 </p>
-              </div>
-            </div>
-
-            {/* STEP 2: Date and Time Selection for Home Service */}
-            <div className="bg-white rounded-[14px] p-4 border border-[#C2D1E8]/40 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-full bg-[#2952AB] text-white text-[11px] font-bold flex items-center justify-center">
-                    2
-                  </span>
-                  <h3 className="font-bold text-xs text-gray-900">مواعيد الخدمة المنزلية المتوفرة</h3>
-                </div>
-                <span className="text-[10px] bg-blue-50 text-[#2952AB] font-bold px-2 py-0.5 rounded">
-                  تشمل مهلة الانتقال
-                </span>
-              </div>
-
-              {/* Date Picker */}
-              <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                {dateOptions.map((opt) => (
-                  <button
-                    key={opt.date}
-                    onClick={() => setSelectedDate(opt.date)}
-                    className={`flex-1 min-w-[70px] p-2.5 rounded-[10px] border text-center transition-all ${
-                      selectedDate === opt.date
-                        ? 'bg-[#2952AB] text-white border-[#2952AB] shadow-sm'
-                        : 'bg-white text-gray-700 border-gray-200 hover:border-[#2952AB]/30'
-                    }`}
-                  >
-                    <span className="text-[10px] block opacity-80">{opt.dayName}</span>
-                    <span className="text-xs font-bold block mt-0.5">{opt.day}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Home Dispatch Slots */}
-              <div>
-                <label className="text-[11px] text-gray-500 block mb-2 font-medium">
-                  اختر وقت وصول الفريق لمنزلك ({selectedTimeSlot}):
-                </label>
-                <div className="grid grid-cols-5 gap-2">
-                  {homeDispatchSlots.map((slot) => (
-                    <button
-                      key={slot}
-                      onClick={() => setSelectedTimeSlot(slot)}
-                      className={`py-2 rounded-[8px] text-xs font-bold border transition-all ${
-                        selectedTimeSlot === slot
-                          ? 'bg-[#C69815] text-white border-[#C69815] shadow-sm'
-                          : 'bg-gray-50 text-gray-800 border-gray-200 hover:bg-[#FEFBF3]'
-                      }`}
-                    >
-                      {slot}
-                    </button>
-                  ))}
-                </div>
               </div>
             </div>
 

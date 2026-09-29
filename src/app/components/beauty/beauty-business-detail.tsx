@@ -47,6 +47,49 @@ export function BeautyBusinessDetail() {
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [locationNotice, setLocationNotice] = useState<string | null>(null);
 
+  // Home Service Date & Time Selection (Mandatory FIRST step for Home Service)
+  const homeDateOptions = [
+    { date: '2026-09-16', day: 'اليوم', dayName: 'الأربعاء' },
+    { date: '2026-09-17', day: 'غداً', dayName: 'الخميس' },
+    { date: '2026-09-18', day: '18 سبتمبر', dayName: 'الجمعة' },
+    { date: '2026-09-19', day: '19 سبتمبر', dayName: 'السبت' },
+    { date: '2026-09-20', day: '20 سبتمبر', dayName: 'الأحد' },
+  ];
+  const homeDispatchSlots = ['10:30', '13:00', '15:30', '18:00', '20:30'];
+
+  const [homeSelectedDate, setHomeSelectedDate] = useState('2026-09-17');
+  const [homeSelectedTimeSlot, setHomeSelectedTimeSlot] = useState('13:00');
+
+  // Check if a service is available at the selected date & time for Home Service
+  const getHomeServiceSlotAvailability = (
+    service: BeautyBranchService,
+    slot: string
+  ): { available: boolean; reason?: string } => {
+    if (!service.homeServiceAvailable) {
+      return { available: false, reason: 'تتطلب تجهيزات الفرع (متاحة بالصالون فقط)' };
+    }
+
+    const [hourStr] = slot.split(':');
+    const slotHour = parseInt(hourStr, 10);
+
+    // Filter home service professionals on shift during slot
+    const homeProsOnShift = business.professionals.filter((pro) => {
+      if (!pro.homeServiceAvailable) return false;
+      const start = pro.shiftStartHour ?? 10;
+      const end = pro.shiftEndHour ?? 20; // Home dispatch shifts end at 20:00
+      return slotHour >= start && slotHour < end;
+    });
+
+    if (homeProsOnShift.length === 0) {
+      return {
+        available: false,
+        reason: `طاقم الخدمة المنزلية غير متاح في الوقت المحدد (${slot}). اختر موعداً آخر.`,
+      };
+    }
+
+    return { available: true };
+  };
+
   // Multi-service selection cart (US-052)
   const [selectedServices, setSelectedServices] = useState<BeautyBranchService[]>([]);
   const [isFavorite, setIsFavorite] = useState(false);
@@ -66,12 +109,23 @@ export function BeautyBusinessDetail() {
     if (mode === locationMode) return;
     setLocationMode(mode);
 
-    // If switching to home, remove any services that are not available at home
+    // If switching to home, ensure selected services are available for home at the chosen slot
     if (mode === 'AT_HOME') {
-      const incompatibleServices = selectedServices.filter((s) => !s.homeServiceAvailable);
+      const incompatibleServices = selectedServices.filter(
+        (s) => !getHomeServiceSlotAvailability(s, homeSelectedTimeSlot).available
+      );
       if (incompatibleServices.length > 0) {
-        setSelectedServices(selectedServices.filter((s) => s.homeServiceAvailable));
-        setLocationNotice(`تمت إزالة ${incompatibleServices.length} خدمة مخصصة للصالون فقط من السلة.`);
+        setSelectedServices(
+          selectedServices.filter(
+            (s) => getHomeServiceSlotAvailability(s, homeSelectedTimeSlot).available
+          )
+        );
+        setLocationNotice(
+          `يرجى تحديد وقت وتاريخ الخدمة أولاً. تمت إزالة ${incompatibleServices.length} خدمة غير متاحة منزلياً في هذا الوقت.`
+        );
+        setTimeout(() => setLocationNotice(null), 4000);
+      } else {
+        setLocationNotice('قم أولاً باختيار تاريخ ووقت الزيارة المنزلية قبل تحديد الخدمات.');
         setTimeout(() => setLocationNotice(null), 4000);
       }
     } else {
@@ -79,13 +133,35 @@ export function BeautyBusinessDetail() {
     }
   };
 
+  // Handle Home Time Slot Change
+  const handleHomeTimeSlotChange = (newSlot: string) => {
+    setHomeSelectedTimeSlot(newSlot);
+    if (locationMode === 'AT_HOME') {
+      const incompatible = selectedServices.filter(
+        (s) => !getHomeServiceSlotAvailability(s, newSlot).available
+      );
+      if (incompatible.length > 0) {
+        setSelectedServices((prev) =>
+          prev.filter((s) => getHomeServiceSlotAvailability(s, newSlot).available)
+        );
+        setLocationNotice(
+          `تم تحديث الموعد إلى ${newSlot}. تمت إزالة ${incompatible.length} خدمة غير متوفرة في هذا الوقت.`
+        );
+        setTimeout(() => setLocationNotice(null), 4000);
+      }
+    }
+  };
+
   // Toggle service selection
   const toggleService = (service: BeautyBranchService) => {
-    // If in home mode and service is not home available, prevent adding
-    if (locationMode === 'AT_HOME' && !service.homeServiceAvailable) {
-      setLocationNotice(`عذراً، خدمة "${service.name}" تتطلب تجهيزات الصالون الخاصة ولا يمكن تقديمها منزلياً.`);
-      setTimeout(() => setLocationNotice(null), 3500);
-      return;
+    // If in home mode, verify availability for chosen date & time
+    if (locationMode === 'AT_HOME') {
+      const avail = getHomeServiceSlotAvailability(service, homeSelectedTimeSlot);
+      if (!avail.available) {
+        setLocationNotice(`عذراً، خدمة "${service.name}" غير متاحة في الموعد المحدد: ${avail.reason}`);
+        setTimeout(() => setLocationNotice(null), 4000);
+        return;
+      }
     }
 
     if (selectedServices.some((s) => s.serviceId === service.serviceId)) {
@@ -99,8 +175,11 @@ export function BeautyBusinessDetail() {
   const availableCategories = useMemo(() => {
     const counts = new Map<string, number>();
     business.services.forEach((s) => {
-      // In home mode, count only home available
-      if (locationMode === 'AT_HOME' && !s.homeServiceAvailable) return;
+      // In home mode, count only available home services for chosen slot
+      if (locationMode === 'AT_HOME') {
+        const avail = getHomeServiceSlotAvailability(s, homeSelectedTimeSlot);
+        if (!avail.available) return;
+      }
       counts.set(s.categoryId, (counts.get(s.categoryId) || 0) + 1);
     });
 
@@ -112,7 +191,7 @@ export function BeautyBusinessDetail() {
     }));
 
     return list;
-  }, [business.services, locationMode]);
+  }, [business.services, locationMode, homeSelectedTimeSlot]);
 
   // Filtered services based on Category & Location Mode
   const filteredServices = useMemo(() => {
@@ -132,7 +211,13 @@ export function BeautyBusinessDetail() {
   const handleProceedToBooking = () => {
     if (selectedServices.length === 0) return;
     const serviceIds = selectedServices.map((s) => s.serviceId).join(',');
-    navigate(`/beauty/book/${business.id}?branchId=${selectedBranch.id}&mode=${locationMode}&services=${serviceIds}`);
+    const dateTimeQuery =
+      locationMode === 'AT_HOME'
+        ? `&date=${homeSelectedDate}&time=${homeSelectedTimeSlot}`
+        : '';
+    navigate(
+      `/beauty/book/${business.id}?branchId=${selectedBranch.id}&mode=${locationMode}&services=${serviceIds}${dateTimeQuery}`
+    );
   };
 
   return (
@@ -379,14 +464,78 @@ export function BeautyBusinessDetail() {
                 </div>
               )}
 
+              {/* STEP 2 for HOME SERVICE: Date and Time Selection FIRST */}
+              {locationMode === 'AT_HOME' && (
+                <div className="bg-white rounded-[14px] p-3.5 border-2 border-[#2952AB]/30 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-full bg-[#2952AB] text-white text-[11px] font-bold flex items-center justify-center">
+                        2
+                      </span>
+                      <h3 className="font-bold text-xs text-gray-900">حدد موعد الخدمة المنزلية أولاً:</h3>
+                    </div>
+                    <span className="text-[10px] bg-[#FEF8E7] text-[#8A680F] font-bold px-2 py-0.5 rounded border border-[#FAEFC1]">
+                      تحديد التوفر أولاً
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-gray-600 leading-relaxed">
+                    اختر تاريخ ووقت وصول الفريق لمنزلك أولاً لتحديد مدى توفر الخدمات وطاقم الزيارة في ذلك الموعد.
+                  </p>
+
+                  {/* Date Selector */}
+                  <div>
+                    <label className="text-[11px] text-gray-700 font-bold block mb-1.5">اختر تاريخ الزيارة:</label>
+                    <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                      {homeDateOptions.map((opt) => (
+                        <button
+                          key={opt.date}
+                          onClick={() => setHomeSelectedDate(opt.date)}
+                          className={`flex-1 min-w-[70px] p-2 rounded-[10px] border text-center transition-all ${
+                            homeSelectedDate === opt.date
+                              ? 'bg-[#2952AB] text-white border-[#2952AB] shadow-xs'
+                              : 'bg-white text-gray-700 border-gray-200 hover:border-[#2952AB]/30'
+                          }`}
+                        >
+                          <span className="text-[10px] block opacity-80">{opt.dayName}</span>
+                          <span className="text-xs font-bold block mt-0.5">{opt.day}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Time Slots Selector */}
+                  <div>
+                    <label className="text-[11px] text-gray-700 font-bold block mb-1.5">اختر وقت الوصول ({homeSelectedTimeSlot}):</label>
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {homeDispatchSlots.map((slot) => (
+                        <button
+                          key={slot}
+                          onClick={() => handleHomeTimeSlotChange(slot)}
+                          className={`py-2 rounded-[8px] text-xs font-bold border transition-all ${
+                            homeSelectedTimeSlot === slot
+                              ? 'bg-[#C69815] text-white border-[#C69815] shadow-sm'
+                              : 'bg-gray-50 text-gray-800 border-gray-200 hover:bg-[#FEFBF3]'
+                          }`}
+                        >
+                          {slot}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Service Categories Display */}
               <div>
                 <div className="flex items-center justify-between px-1 mb-2">
                   <div className="flex items-center gap-1.5">
                     <span className="w-5 h-5 rounded-full bg-[#2952AB] text-white text-[11px] font-bold flex items-center justify-center">
-                      2
+                      {locationMode === 'AT_HOME' ? 3 : 2}
                     </span>
-                    <h4 className="font-bold text-xs text-gray-900">أقسام وتصنيفات الخدمات:</h4>
+                    <h4 className="font-bold text-xs text-gray-900">
+                      {locationMode === 'AT_HOME' ? 'الخدمات المتاحة في الموعد المحدد:' : 'أقسام وتصنيفات الخدمات:'}
+                    </h4>
                   </div>
                   <span className="text-[11px] text-gray-500">
                     {filteredServices.length} خدمة متوفرة
@@ -429,7 +578,11 @@ export function BeautyBusinessDetail() {
               <div className="space-y-2.5">
                 {filteredServices.map((srv) => {
                   const isSelected = selectedServices.some((s) => s.serviceId === srv.serviceId);
-                  const isHomeOnlyUnavailable = locationMode === 'AT_HOME' && !srv.homeServiceAvailable;
+                  const slotCheck =
+                    locationMode === 'AT_HOME'
+                      ? getHomeServiceSlotAvailability(srv, homeSelectedTimeSlot)
+                      : { available: true };
+                  const isUnavailable = !slotCheck.available;
                   const activePrice = locationMode === 'AT_HOME' && srv.homePrice ? srv.homePrice : srv.price;
 
                   return (
@@ -437,7 +590,7 @@ export function BeautyBusinessDetail() {
                       key={srv.serviceId}
                       onClick={() => toggleService(srv)}
                       className={`p-3.5 rounded-[12px] border transition-all ${
-                        isHomeOnlyUnavailable
+                        isUnavailable
                           ? 'bg-gray-50/80 border-dashed border-gray-300 opacity-75 cursor-not-allowed'
                           : isSelected
                           ? 'border-[#2952AB] shadow-md ring-1 ring-[#2952AB] bg-[#F2F5FB]/30 cursor-pointer'
@@ -449,7 +602,7 @@ export function BeautyBusinessDetail() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <h4
                               className={`font-bold text-sm ${
-                                isHomeOnlyUnavailable ? 'text-gray-500' : 'text-gray-900'
+                                isUnavailable ? 'text-gray-500' : 'text-gray-900'
                               }`}
                             >
                               {srv.name}
@@ -479,15 +632,15 @@ export function BeautyBusinessDetail() {
 
                           {/* Dynamic Location Eligibility Tag */}
                           {locationMode === 'AT_HOME' ? (
-                            srv.homeServiceAvailable ? (
-                              <div className="flex items-center gap-1.5 text-[11px] text-green-700 mt-2 font-medium bg-green-50 px-2 py-0.5 rounded w-fit">
+                            slotCheck.available ? (
+                              <div className="flex items-center gap-1.5 text-[11px] text-green-700 mt-2 font-medium bg-green-50 px-2 py-0.5 rounded w-fit border border-green-200">
                                 <HomeIcon size={12} className="text-green-600" />
-                                <span>جاهز لتقديم الخدمة في منزلك</span>
+                                <span>متاح للخدمة المنزلية في موعد {homeSelectedTimeSlot} ✓</span>
                               </div>
                             ) : (
-                              <div className="flex items-center gap-1.5 text-[11px] text-amber-700 mt-2 font-semibold bg-amber-50 px-2 py-0.5 rounded border border-amber-200/80 w-fit">
-                                <Building size={12} className="text-amber-600" />
-                                <span>متاح بالصالون فقط • يتطلب تجهيزات الصالون الخاصة</span>
+                              <div className="flex items-center gap-1.5 text-[11px] text-red-700 mt-2 font-semibold bg-red-50 px-2 py-0.5 rounded border border-red-200/80 w-fit">
+                                <AlertCircle size={12} className="text-red-600" />
+                                <span>{slotCheck.reason}</span>
                               </div>
                             )
                           ) : (
@@ -505,7 +658,7 @@ export function BeautyBusinessDetail() {
                           <div className="text-right">
                             <span
                               className={`text-base font-extrabold ${
-                                isHomeOnlyUnavailable ? 'text-gray-400' : 'text-gray-900'
+                                isUnavailable ? 'text-gray-400' : 'text-gray-900'
                               }`}
                             >
                               {activePrice}
@@ -516,12 +669,12 @@ export function BeautyBusinessDetail() {
                             </span>
                           </div>
 
-                          {isHomeOnlyUnavailable ? (
+                          {isUnavailable ? (
                             <div
                               className="w-6 h-6 rounded-[6px] border border-gray-300 bg-gray-100 flex items-center justify-center text-gray-400"
-                              title="غير متاح بالخدمة المنزلية"
+                              title={slotCheck.reason}
                             >
-                              <Building size={13} />
+                              <AlertCircle size={13} />
                             </div>
                           ) : (
                             <div
