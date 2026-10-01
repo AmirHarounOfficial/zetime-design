@@ -100,9 +100,13 @@ export function BeautyBookingFlow() {
   const [customerNotes, setCustomerNotes] = useState('');
 
   // Location / Service Range Checker States (Crucial for Home Service)
-  const [selectedDistrictName, setSelectedDistrictName] = useState('العليا');
-  const [homeAddress, setHomeAddress] = useState('حي العليا، شارع العروبة، فيلا 24، الرياض');
-  const [customDistanceKm, setCustomDistanceKm] = useState(3.2);
+  const queryDistrict = searchParams.get('district');
+  const queryAddress = searchParams.get('address');
+  const queryDistance = searchParams.get('distance');
+
+  const [selectedDistrictName, setSelectedDistrictName] = useState(queryDistrict || 'العليا');
+  const [homeAddress, setHomeAddress] = useState(queryAddress || 'حي العليا، شارع العروبة، فيلا 24، الرياض');
+  const [customDistanceKm, setCustomDistanceKm] = useState(queryDistance ? parseFloat(queryDistance) : 3.2);
   const [locationChecking, setLocationChecking] = useState(false);
   const [gpsSimulated, setGpsSimulated] = useState(false);
 

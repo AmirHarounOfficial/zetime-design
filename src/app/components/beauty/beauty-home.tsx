@@ -26,6 +26,9 @@ import {
   Store,
   ChevronDown,
   X,
+  Globe,
+  Plane,
+  Check,
 } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
@@ -89,6 +92,7 @@ export function BeautyHomeModule() {
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [selectedQuickTab, setSelectedQuickTab] = useState('all');
   const [favorites, setFavorites] = useState<string[]>(['biz-lumiere']);
+  const [isCustomizeExpanded, setIsCustomizeExpanded] = useState(true);
 
   // Active booking if any
   const activeBooking = mockBeautyBookings.find(
@@ -358,6 +362,274 @@ export function BeautyHomeModule() {
       </div>
 
       <div className="max-w-md mx-auto px-4 mt-4 space-y-5">
+        {/* ======================================================== */}
+        {/* SALONS MAIN SCREEN SELECTION: 1- Local/Overseas, 2- Date/Time, 3- Salon/Home */}
+        {/* ======================================================== */}
+        <div className="bg-gradient-to-br from-[#1A3670] via-[#2952AB] to-[#12254C] text-white rounded-[18px] p-4 shadow-xl border border-[#C69815]/30 overflow-hidden relative">
+          {/* Subtle decorative glow */}
+          <div className="absolute -top-12 -left-12 w-32 h-32 bg-[#C69815]/20 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-[#2952AB]/40 rounded-full blur-2xl pointer-events-none" />
+
+          {/* Header (Clickable to Expand / Collapse) */}
+          <div
+            onClick={() => setIsCustomizeExpanded(!isCustomizeExpanded)}
+            className="flex items-center justify-between cursor-pointer select-none relative z-10 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#C69815] to-[#A88012] flex items-center justify-center text-white shadow-sm flex-shrink-0">
+                <Sparkles size={16} />
+              </div>
+              <div>
+                <h2 className="font-bold text-sm text-white flex items-center gap-1.5">
+                  <span>تخصيص حجز الصالونات</span>
+                  <span className="text-[10px] bg-white/20 text-[#FAEFC1] px-2 py-0.2 rounded-full font-bold">
+                    {isCustomizeExpanded ? 'خطوة بخطوة' : 'ملخص الحجز'}
+                  </span>
+                </h2>
+                <p className="text-[11px] text-white/70">
+                  {isCustomizeExpanded
+                    ? 'حدد الوجهة، الموعد، ونوع الخدمة للانتقال للصالون'
+                    : `${filters.regionScope === 'local' ? `🇸🇦 ${filters.selectedCity}` : `✈️ ${filters.selectedCity}`} • ${filters.selectedDate === '2026-09-16' ? 'اليوم' : filters.selectedDate === '2026-09-17' ? 'غداً' : filters.selectedDate} (${filters.selectedTimeSlot}) • ${filters.serviceLocation === 'at_home' ? '🏡 خدمة منزلية' : '🏬 داخل الصالون'}`}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] bg-[#C69815]/30 text-[#FAEFC1] border border-[#C69815]/50 px-2 py-0.5 rounded-full font-mono font-bold">
+                {currentCount} متاح
+              </span>
+              <button
+                type="button"
+                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all"
+                title={isCustomizeExpanded ? 'طي الخيارات' : 'توسيع الخيارات'}
+              >
+                <ChevronDown
+                  size={16}
+                  className={`transition-transform duration-300 ${isCustomizeExpanded ? 'rotate-180' : ''}`}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* Collapsed Quick Summary Pill Bar */}
+          {!isCustomizeExpanded && (
+            <div
+              onClick={() => setIsCustomizeExpanded(true)}
+              className="mt-2.5 pt-2.5 border-t border-white/15 flex items-center justify-between text-xs text-white/90 cursor-pointer hover:bg-white/5 p-1 rounded-[10px] transition-all"
+            >
+              <div className="flex items-center gap-1.5 flex-wrap text-[11px]">
+                <span className="bg-white/15 px-2 py-0.5 rounded-[6px] font-bold">
+                  {filters.regionScope === 'local' ? `🇸🇦 ${filters.selectedCity}` : `✈️ ${filters.selectedCity}`}
+                </span>
+                <span className="bg-white/15 px-2 py-0.5 rounded-[6px] font-bold">
+                  🗓️ {filters.selectedDate === '2026-09-16' ? 'اليوم' : filters.selectedDate === '2026-09-17' ? 'غداً' : filters.selectedDate} • {filters.selectedTimeSlot}
+                </span>
+                <span className="bg-[#C69815]/30 text-[#FAEFC1] border border-[#C69815]/40 px-2 py-0.5 rounded-[6px] font-bold">
+                  {filters.serviceLocation === 'at_home' ? '🏡 خدمة منزلية' : '🏬 داخل الصالون'}
+                </span>
+              </div>
+              <span className="text-[10px] text-[#FAEFC1] underline font-bold whitespace-nowrap mr-2">
+                تعديل التخصيص ▾
+              </span>
+            </div>
+          )}
+
+          {/* Expandable Options Container */}
+          {isCustomizeExpanded && (
+            <div className="space-y-3.5 relative z-10 mt-3 pt-3 border-t border-white/15 animate-fadeIn">
+              {/* 1- Local / Overseas Selection */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5 text-xs">
+                  <span className="font-bold text-[#FAEFC1] flex items-center gap-1.5">
+                    <span className="w-4 h-4 rounded-full bg-[#C69815] text-[#1D3D7A] text-[10px] font-black flex items-center justify-center">1</span>
+                    <span>الوجهة: محلي / دولي (Local / Overseas)</span>
+                  </span>
+                  <span className="text-[10px] text-white/80 font-medium">
+                    {filters.regionScope === 'local' ? 'داخل المملكة' : 'وجهات سياحية دولية'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 bg-black/25 p-1 rounded-[12px] border border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilters(prev => ({
+                        ...prev,
+                        regionScope: 'local',
+                        selectedCountry: 'المملكة العربية السعودية',
+                        selectedCity: 'الرياض'
+                      }));
+                    }}
+                    className={`py-2 px-3 rounded-[9px] text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                      filters.regionScope === 'local'
+                        ? 'bg-white text-[#2952AB] shadow-md font-black'
+                        : 'text-white/80 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <span className="text-sm">🇸🇦</span>
+                    <span>محلي (Local)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilters(prev => ({
+                        ...prev,
+                        regionScope: 'overseas',
+                        selectedCountry: 'الإمارات العربية المتحدة',
+                        selectedCity: 'دبي'
+                      }));
+                    }}
+                    className={`py-2 px-3 rounded-[9px] text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                      filters.regionScope === 'overseas'
+                        ? 'bg-[#C69815] text-white shadow-md font-black'
+                        : 'text-white/80 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <Plane size={14} className="rotate-45" />
+                    <span>دولي (Overseas)</span>
+                  </button>
+                </div>
+
+                {/* Destination Cities Quick Bar */}
+                <div className="flex items-center gap-1.5 mt-2 overflow-x-auto no-scrollbar py-0.5 text-[11px]">
+                  {filters.regionScope === 'local' ? (
+                    ['الرياض', 'جدة', 'الخبر', 'الدمام'].map(city => (
+                      <button
+                        key={city}
+                        type="button"
+                        onClick={() => setFilters(prev => ({ ...prev, selectedCity: city }))}
+                        className={`px-2.5 py-1 rounded-full border transition-all whitespace-nowrap ${
+                          filters.selectedCity === city
+                            ? 'bg-white/20 text-[#FAEFC1] border-[#FAEFC1] font-bold shadow-xs'
+                            : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10'
+                        }`}
+                      >
+                        📍 {city}
+                      </button>
+                    ))
+                  ) : (
+                    [
+                      { city: 'دبي', flag: '🇦🇪' },
+                      { city: 'باريس', flag: '🇫🇷' },
+                      { city: 'لندن', flag: '🇬🇧' },
+                      { city: 'إسطنبول', flag: '🇹🇷' }
+                    ].map(dest => (
+                      <button
+                        key={dest.city}
+                        type="button"
+                        onClick={() => setFilters(prev => ({ ...prev, selectedCity: dest.city }))}
+                        className={`px-2.5 py-1 rounded-full border transition-all whitespace-nowrap ${
+                          filters.selectedCity === dest.city
+                            ? 'bg-[#C69815] text-white border-white/40 font-bold shadow-xs'
+                            : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10'
+                        }`}
+                      >
+                        {dest.flag} {dest.city}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* 2- Date and Time Selection */}
+              <div className="pt-2 border-t border-white/10">
+                <div className="flex items-center justify-between mb-1.5 text-xs">
+                  <span className="font-bold text-[#FAEFC1] flex items-center gap-1.5">
+                    <span className="w-4 h-4 rounded-full bg-[#C69815] text-[#1D3D7A] text-[10px] font-black flex items-center justify-center">2</span>
+                    <span>التاريخ والوقت (Date & Time)</span>
+                  </span>
+                  <span className="text-[11px] text-white/90 bg-white/10 px-2 py-0.5 rounded-full font-mono">
+                    {filters.selectedDate === '2026-09-16' ? 'اليوم' : filters.selectedDate === '2026-09-17' ? 'غداً' : filters.selectedDate} • {filters.selectedTimeSlot}
+                  </span>
+                </div>
+
+                {/* Date Pills */}
+                <div className="grid grid-cols-4 gap-1.5 mb-2">
+                  {[
+                    { date: '2026-09-16', label: 'اليوم', dayName: 'الأربعاء' },
+                    { date: '2026-09-17', label: 'غداً', dayName: 'الخميس' },
+                    { date: '2026-09-18', label: '18 سبت', dayName: 'الجمعة' },
+                    { date: '2026-09-19', label: '19 سبت', dayName: 'السبت' },
+                  ].map(d => (
+                    <button
+                      key={d.date}
+                      type="button"
+                      onClick={() => setFilters(prev => ({ ...prev, selectedDate: d.date }))}
+                      className={`py-1.5 px-1 rounded-[8px] border text-center transition-all ${
+                        filters.selectedDate === d.date
+                          ? 'bg-[#C69815] text-white border-white/40 font-bold shadow-xs'
+                          : 'bg-white/10 text-white/80 border-white/10 hover:bg-white/15'
+                      }`}
+                    >
+                      <span className="text-[9px] block opacity-80">{d.dayName}</span>
+                      <span className="text-[11px] font-bold block">{d.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Time Slots */}
+                <div className="grid grid-cols-5 gap-1 text-[11px]">
+                  {['10:30', '13:30', '16:30', '19:00', '21:00'].map(slot => (
+                    <button
+                      key={slot}
+                      type="button"
+                      onClick={() => setFilters(prev => ({ ...prev, selectedTimeSlot: slot }))}
+                      className={`py-1 rounded-[6px] border text-center font-mono transition-all ${
+                        filters.selectedTimeSlot === slot
+                          ? 'bg-white text-[#2952AB] border-white font-black shadow-xs'
+                          : 'bg-white/10 text-white/80 border-white/10 hover:bg-white/15'
+                      }`}
+                    >
+                      {slot}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 3- Salon / Home Selection */}
+              <div className="pt-2 border-t border-white/10">
+                <div className="flex items-center justify-between mb-1.5 text-xs">
+                  <span className="font-bold text-[#FAEFC1] flex items-center gap-1.5">
+                    <span className="w-4 h-4 rounded-full bg-[#C69815] text-[#1D3D7A] text-[10px] font-black flex items-center justify-center">3</span>
+                    <span>مكان تقديم الخدمة (Salon / Home)</span>
+                  </span>
+                  <span className="text-[10px] text-white/80">
+                    {filters.serviceLocation === 'at_home' ? 'تصلك الخبيرة لمنزلك' : 'داخل مقر وفروع الصالون'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 bg-black/25 p-1 rounded-[12px] border border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setFilters(prev => ({ ...prev, serviceLocation: 'in_branch' }))}
+                    className={`py-2 px-3 rounded-[9px] text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                      filters.serviceLocation !== 'at_home'
+                        ? 'bg-white text-[#2952AB] shadow-md font-black'
+                        : 'text-white/80 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <Store size={15} />
+                    <span>في الصالون (Salon)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFilters(prev => ({ ...prev, serviceLocation: 'at_home' }))}
+                    className={`py-2 px-3 rounded-[9px] text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                      filters.serviceLocation === 'at_home'
+                        ? 'bg-[#C69815] text-white shadow-md font-black'
+                        : 'text-white/80 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <HomeIcon size={15} />
+                    <span>في المنزل (Home)</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Overview Modules & Promotions (shown when browsing general businesses) */}
         {!isDiscoveryFiltered && (
           <>
@@ -782,7 +1054,7 @@ export function BeautyHomeModule() {
                     {/* Actions: Book Now & Live Queue */}
                     <div className="flex items-center gap-2 mt-3.5 pt-2">
                       <Link
-                        to={`/beauty/business/${business.id}?branchId=${relevantBranch.id}`}
+                        to={`/beauty/business/${business.id}?branchId=${relevantBranch.id}&scope=${filters.regionScope}&mode=${filters.serviceLocation === 'at_home' ? 'AT_HOME' : 'IN_BRANCH'}&date=${filters.selectedDate}&time=${filters.selectedTimeSlot}`}
                         className="flex-1 py-2.5 px-3 bg-[#2952AB] hover:bg-[#1D3D7A] text-white rounded-[10px] text-xs font-bold text-center shadow-sm active:scale-95 transition-all"
                       >
                         عرض الخدمات والحجز

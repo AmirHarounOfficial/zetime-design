@@ -47,6 +47,12 @@ export interface BeautyPriceRange {
 
 export interface BeautyFilterState {
   searchQuery: string;
+  regionScope: 'local' | 'overseas'; // 1- Local / Overseas
+  selectedCountry: string;
+  selectedCity: string;
+  selectedDate: string; // 2- Date
+  selectedTimeSlot: string; // 2- Time
+  serviceLocation: BeautyServiceLocationMode; // 3- Salon / Home
   location: BeautyFilterLocation;
   businessTypes: BeautyBusinessType[];
   audience: BeautyAudience;
@@ -57,13 +63,18 @@ export interface BeautyFilterState {
   priceRange: BeautyPriceRange;
   availability: BeautyFilterAvailability;
   onlyActiveOffers: boolean;
-  serviceLocation: BeautyServiceLocationMode;
   sortBy: BeautySortOption;
   viewMode: BeautyViewMode;
 }
 
 export const initialBeautyFilterState: BeautyFilterState = {
   searchQuery: '',
+  regionScope: 'local',
+  selectedCountry: 'المملكة العربية السعودية',
+  selectedCity: 'الرياض',
+  selectedDate: '2026-09-17',
+  selectedTimeSlot: '14:00',
+  serviceLocation: 'all',
   location: {
     mode: 'current',
     selectedArea: 'all',
@@ -84,7 +95,6 @@ export const initialBeautyFilterState: BeautyFilterState = {
     timeframe: 'any',
   },
   onlyActiveOffers: false,
-  serviceLocation: 'all',
   sortBy: 'relevance',
   viewMode: 'businesses',
 };

@@ -50,6 +50,13 @@ export function filterBusinesses(
     // 1. Subscription & Approval Rule (Approved + Active + Valid Subscription)
     if (biz.subscriptionStatus !== 'ACTIVE') continue;
 
+    // Region Scope filter (Local vs Overseas)
+    if (filters.regionScope === 'overseas') {
+      if (biz.regionScope !== 'overseas') continue;
+    } else {
+      if (biz.regionScope === 'overseas') continue;
+    }
+
     // 2. Search Query (business name, description, services, professionals)
     if (filters.searchQuery.trim()) {
       const q = filters.searchQuery.toLowerCase();
@@ -186,6 +193,13 @@ export function filterBookableServices(
   for (const biz of businesses) {
     if (biz.subscriptionStatus !== 'ACTIVE') continue;
 
+    // Region Scope filter (Local vs Overseas)
+    if (filters.regionScope === 'overseas') {
+      if (biz.regionScope !== 'overseas') continue;
+    } else {
+      if (biz.regionScope === 'overseas') continue;
+    }
+
     if (filters.businessTypes.length > 0 && !filters.businessTypes.includes(biz.type as any)) {
       continue;
     }
@@ -300,6 +314,13 @@ export function filterProfessionals(
 
   for (const biz of businesses) {
     if (biz.subscriptionStatus !== 'ACTIVE') continue;
+
+    // Region Scope filter (Local vs Overseas)
+    if (filters.regionScope === 'overseas') {
+      if (biz.regionScope !== 'overseas') continue;
+    } else {
+      if (biz.regionScope === 'overseas') continue;
+    }
 
     if (filters.businessTypes.length > 0 && !filters.businessTypes.includes(biz.type as any)) {
       continue;

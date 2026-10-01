@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useParams, useNavigate, Link } from 'react-router';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router';
 import {
   ChevronLeft,
   Star,
@@ -31,6 +31,7 @@ import { beautyBusinesses, BeautyBranchService, BeautyBranch } from '../../data/
 export function BeautyBusinessDetail() {
   const { businessId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const business = beautyBusinesses.find((b) => b.id === businessId) || beautyBusinesses[0];
 
@@ -42,23 +43,66 @@ export function BeautyBusinessDetail() {
   // Active Tab
   const [activeTab, setActiveTab] = useState<'services' | 'team' | 'reviews' | 'about'>('services');
 
-  // Initial Location Selection Mode: Salon vs. Home (Crucial: selected before choosing specific services)
-  const [locationMode, setLocationMode] = useState<'IN_BRANCH' | 'AT_HOME'>('IN_BRANCH');
+  // Initial Location Selection Mode from URL or default (IN_BRANCH vs AT_HOME)
+  const queryMode = searchParams.get('mode');
+  const [locationMode, setLocationMode] = useState<'IN_BRANCH' | 'AT_HOME'>(
+    queryMode === 'AT_HOME' ? 'AT_HOME' : 'IN_BRANCH'
+  );
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [locationNotice, setLocationNotice] = useState<string | null>(null);
 
-  // Home Service Date & Time Selection (Mandatory FIRST step for Home Service)
-  const homeDateOptions = [
+  // ============================================
+  // Date & Time for IN-SALON (Mandatory step before services)
+  // ============================================
+  const queryDate = searchParams.get('date');
+  const queryTime = searchParams.get('time');
+
+  const salonDateOptions = [
     { date: '2026-09-16', day: 'اليوم', dayName: 'الأربعاء' },
     { date: '2026-09-17', day: 'غداً', dayName: 'الخميس' },
     { date: '2026-09-18', day: '18 سبتمبر', dayName: 'الجمعة' },
     { date: '2026-09-19', day: '19 سبتمبر', dayName: 'السبت' },
     { date: '2026-09-20', day: '20 سبتمبر', dayName: 'الأحد' },
   ];
-  const homeDispatchSlots = ['10:30', '13:00', '15:30', '18:00', '20:30'];
+  const inSalonTimeSlots = ['10:00', '11:30', '13:00', '14:30', '16:00', '17:30', '19:00', '20:30', '21:15'];
 
-  const [homeSelectedDate, setHomeSelectedDate] = useState('2026-09-17');
-  const [homeSelectedTimeSlot, setHomeSelectedTimeSlot] = useState('13:00');
+  const [inSalonSelectedDate, setInSalonSelectedDate] = useState(queryDate || '2026-09-17');
+  const [inSalonSelectedTimeSlot, setInSalonSelectedTimeSlot] = useState(queryTime || '14:30');
+  const [inSalonDateTimeConfirmed, setInSalonDateTimeConfirmed] = useState(true);
+
+  // ============================================
+  // AT-HOME Flow: 1- Specify Location First & Zone Check
+  // 2- Date and Time Selection (only if in zone)
+  // 3- Choice of Services
+  // ============================================
+  const HOME_SERVICE_DISTRICTS = [
+    { name: 'العليا', distance: 3.2, address: 'حي العليا، شارع العروبة، الرياض', inZone: true },
+    { name: 'السليمانية', distance: 4.5, address: 'حي السليمانية، شارع التحلية، الرياض', inZone: true },
+    { name: 'النخيل', distance: 6.8, address: 'حي النخيل، طريق الإمام سعود، الرياض', inZone: true },
+    { name: 'الملقا', distance: 8.8, address: 'حي الملقا، طريق أنس بن مالك، الرياض', inZone: true },
+    { name: 'حطين', distance: 9.5, address: 'حي حطين، بالقرب من البوليفارد، الرياض', inZone: true },
+    { name: 'الياسمين', distance: 11.2, address: 'حي الياسمين، طريق الملك عبدالعزيز، الرياض', inZone: true },
+    { name: 'الصحافة', distance: 13.0, address: 'حي الصحافة، طريق التخصصي، الرياض', inZone: true },
+    { name: 'الرمال (خارج النطاق)', distance: 36.5, address: 'حي الرمال، الرياض (يبعد 36.5 كم)', inZone: false },
+    { name: 'المزاحمية (خارج النطاق)', distance: 48.0, address: 'محافظة المزاحمية (يبعد 48 كم)', inZone: false },
+  ];
+
+  const queryDistrict = searchParams.get('district');
+  const queryAddress = searchParams.get('address');
+  const queryDistance = searchParams.get('distance');
+
+  const [homeDistrict, setHomeDistrict] = useState(queryDistrict || 'العليا');
+  const [homeAddress, setHomeAddress] = useState(queryAddress || 'حي العليا، شارع العروبة، فيلا 24، الرياض');
+  const [homeDistanceKm, setHomeDistanceKm] = useState(queryDistance ? parseFloat(queryDistance) : 3.2);
+  const [isLocatingGps, setIsLocatingGps] = useState(false);
+
+  const maxServiceZoneKm = selectedBranch.maxHomeDeliveryKm || 25;
+  const isWithinServiceZone = homeDistanceKm <= maxServiceZoneKm;
+
+  // Home Date & Time Selection (Step 2 - appears only if in zone)
+  const homeDispatchSlots = ['10:30', '13:00', '15:30', '18:00', '20:30'];
+  const [homeSelectedDate, setHomeSelectedDate] = useState(queryDate || '2026-09-17');
+  const [homeSelectedTimeSlot, setHomeSelectedTimeSlot] = useState(queryTime || '13:00');
 
   // Check if a service is available at the selected date & time for Home Service
   const getHomeServiceSlotAvailability = (
@@ -201,6 +245,34 @@ export function BeautyBusinessDetail() {
     });
   }, [business.services, selectedCategory]);
 
+  // Simulate GPS detection for Home Service
+  const handleSimulateHomeGps = () => {
+    setIsLocatingGps(true);
+    setTimeout(() => {
+      setHomeDistrict('العليا (GPS)');
+      setHomeAddress('شارع التحلية، حي العليا، الرياض');
+      setHomeDistanceKm(2.4);
+      setIsLocatingGps(false);
+      setLocationNotice('تم تحديد موقعك بدقة عبر GPS (ضمن نطاق الصالون: 2.4 كم)');
+      setTimeout(() => setLocationNotice(null), 3000);
+    }, 600);
+  };
+
+  // Select Quick District for Home Service
+  const handleSelectDistrict = (item: (typeof HOME_SERVICE_DISTRICTS)[0]) => {
+    setHomeDistrict(item.name);
+    setHomeAddress(item.address);
+    setHomeDistanceKm(item.distance);
+    if (!item.inZone) {
+      setSelectedServices([]);
+      setLocationNotice(`الموقع المحدد (${item.name}) يبعد ${item.distance} كم ويقع خارج نطاق تغطية الصالون.`);
+      setTimeout(() => setLocationNotice(null), 4000);
+    } else {
+      setLocationNotice(`تم اعتماد الموقع: ${item.name} (${item.distance} كم) - ضمن نطاق التغطية.`);
+      setTimeout(() => setLocationNotice(null), 3000);
+    }
+  };
+
   const totalPrice = selectedServices.reduce((sum, s) => {
     const currentPrice = locationMode === 'AT_HOME' && s.homePrice ? s.homePrice : s.price;
     return sum + currentPrice;
@@ -211,12 +283,14 @@ export function BeautyBusinessDetail() {
   const handleProceedToBooking = () => {
     if (selectedServices.length === 0) return;
     const serviceIds = selectedServices.map((s) => s.serviceId).join(',');
-    const dateTimeQuery =
+    const dateVal = locationMode === 'AT_HOME' ? homeSelectedDate : inSalonSelectedDate;
+    const timeVal = locationMode === 'AT_HOME' ? homeSelectedTimeSlot : inSalonSelectedTimeSlot;
+    const addressParam =
       locationMode === 'AT_HOME'
-        ? `&date=${homeSelectedDate}&time=${homeSelectedTimeSlot}`
+        ? `&address=${encodeURIComponent(homeAddress)}&district=${encodeURIComponent(homeDistrict)}&distance=${homeDistanceKm}`
         : '';
     navigate(
-      `/beauty/book/${business.id}?branchId=${selectedBranch.id}&mode=${locationMode}&services=${serviceIds}${dateTimeQuery}`
+      `/beauty/book/${business.id}?branchId=${selectedBranch.id}&mode=${locationMode}&services=${serviceIds}&date=${dateVal}&time=${timeVal}${addressParam}`
     );
   };
 
@@ -386,21 +460,21 @@ export function BeautyBusinessDetail() {
           {activeTab === 'services' && (
             <div className="space-y-3.5">
               {/* Step 0 / Initial Choice: Service Location Selector (Salon vs. Home) */}
-              <div className="bg-white rounded-[14px] p-3.5 border border-[#C2D1E8]/50 shadow-xs">
+              <div className="bg-white rounded-[16px] p-4 border border-[#C2D1E8]/60 shadow-sm">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-1.5">
                     <span className="w-5 h-5 rounded-full bg-[#2952AB] text-white text-[11px] font-bold flex items-center justify-center">
-                      1
+                      •
                     </span>
-                    <h3 className="font-bold text-xs text-gray-900">اختر مكان تقديم الخدمة أولاً:</h3>
+                    <h3 className="font-bold text-xs text-gray-900">اختر مكان تقديم الخدمة:</h3>
                   </div>
                   <span className="text-[10px] text-gray-500 font-medium">
-                    {locationMode === 'IN_BRANCH' ? 'أسعار الصالون' : 'أسعار الخدمة المنزلية'}
+                    {locationMode === 'IN_BRANCH' ? 'أسعار الصالون' : 'خدمة منزلية معتمدة'}
                   </span>
                 </div>
 
                 <p className="text-[11px] text-gray-500 mb-2.5 leading-relaxed">
-                  يرجى تحديد رغبتك قبل اختيار الخدمات، حيث تختلف الخدمات المتاحة والأسعار بحسب التجهيزات المطلوبة.
+                  يرجى تحديد رغبتك، حيث تتبع كل تجربة خطوات حجز مخصصة بحسب نوع الخدمة والمكان.
                 </p>
 
                 {/* Segmented Location Buttons */}
@@ -415,7 +489,7 @@ export function BeautyBusinessDetail() {
                     }`}
                   >
                     <Store size={16} />
-                    <span>في الصالون (Salon)</span>
+                    <span>في الصالون (In-Salon)</span>
                   </button>
 
                   <button
@@ -428,7 +502,7 @@ export function BeautyBusinessDetail() {
                     }`}
                   >
                     <HomeIcon size={16} />
-                    <span>خدمة منزلية (Home)</span>
+                    <span>في المنزل (At Home)</span>
                   </button>
                 </div>
 
@@ -437,17 +511,17 @@ export function BeautyBusinessDetail() {
                   <div className="mt-2.5 p-2.5 bg-[#FEFBF3] rounded-[9px] border border-[#FAEFC1] flex items-center justify-between text-[11px] text-[#8A680F]">
                     <div className="flex items-center gap-1.5">
                       <MapPin size={14} className="text-[#C69815] flex-shrink-0" />
-                      <span>تصلك خبيرات الصالون لمنزلك • رسوم الانتقال (40 ر.س) تُعرض عند الدفع</span>
+                      <span>تصلك خبيرات الصالون لمنزلك • يلزم التحقق من موقعك أولاً</span>
                     </div>
                     <span className="text-[10px] bg-[#C69815] text-white font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
-                      نطاق 25 كم
+                      نطاق {maxServiceZoneKm} كم
                     </span>
                   </div>
                 ) : (
                   <div className="mt-2.5 p-2.5 bg-[#F2F5FB] rounded-[9px] border border-[#C2D1E8]/40 flex items-center justify-between text-[11px] text-[#2952AB]">
                     <div className="flex items-center gap-1.5">
                       <Building size={14} className="text-[#2952AB] flex-shrink-0" />
-                      <span>تقديم الخدمة داخل {selectedBranch.name} • جميع مرافق الصالون متاحة</span>
+                      <span>تقديم الخدمة داخل {selectedBranch.name} • يلزم اختيار الموعد أولاً</span>
                     </div>
                     <span className="text-[10px] bg-[#2952AB]/10 font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
                       تأكيد مباشر
@@ -464,36 +538,53 @@ export function BeautyBusinessDetail() {
                 </div>
               )}
 
-              {/* STEP 2 for HOME SERVICE: Date and Time Selection FIRST */}
-              {locationMode === 'AT_HOME' && (
-                <div className="bg-white rounded-[14px] p-3.5 border-2 border-[#2952AB]/30 shadow-sm space-y-3">
+              {/* ========================================================================= */}
+              {/* FLOW A: IN-SALON (في الصالون) */}
+              {/* Requirement: "If the customer selects 'In-Salon,' they must choose the date and time before selecting the required services." */}
+              {/* ========================================================================= */}
+              {locationMode === 'IN_BRANCH' && (
+                <div className="bg-white rounded-[16px] p-4 border-2 border-[#2952AB]/30 shadow-md space-y-3.5">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-5 h-5 rounded-full bg-[#2952AB] text-white text-[11px] font-bold flex items-center justify-center">
-                        2
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-[#2952AB] text-white text-xs font-bold flex items-center justify-center shadow-xs">
+                        1
                       </span>
-                      <h3 className="font-bold text-xs text-gray-900">حدد موعد الخدمة المنزلية أولاً:</h3>
+                      <div>
+                        <h3 className="font-bold text-xs text-gray-900 flex items-center gap-1.5">
+                          <span>اختر تاريخ ووقت الحجز أولاً</span>
+                          <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.2 rounded-full font-bold">
+                            إلزامي قبل اختيار الخدمات
+                          </span>
+                        </h3>
+                        <p className="text-[11px] text-gray-500">حدد موعدك للتحقق من الأوقات الشاغرة ومقاعد الصالون</p>
+                      </div>
                     </div>
-                    <span className="text-[10px] bg-[#FEF8E7] text-[#8A680F] font-bold px-2 py-0.5 rounded border border-[#FAEFC1]">
-                      تحديد التوفر أولاً
-                    </span>
+                    {inSalonDateTimeConfirmed && (
+                      <span className="text-[10px] bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                        <Check size={12} />
+                        <span>موعد محدد</span>
+                      </span>
+                    )}
                   </div>
-
-                  <p className="text-[11px] text-gray-600 leading-relaxed">
-                    اختر تاريخ ووقت وصول الفريق لمنزلك أولاً لتحديد مدى توفر الخدمات وطاقم الزيارة في ذلك الموعد.
-                  </p>
 
                   {/* Date Selector */}
                   <div>
-                    <label className="text-[11px] text-gray-700 font-bold block mb-1.5">اختر تاريخ الزيارة:</label>
-                    <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                      {homeDateOptions.map((opt) => (
+                    <label className="text-[11px] text-gray-700 font-bold block mb-1.5 flex items-center gap-1">
+                      <Clock size={13} className="text-[#2952AB]" />
+                      <span>اختر تاريخ الزيارة:</span>
+                    </label>
+                    <div className="grid grid-cols-5 gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                      {salonDateOptions.map((opt) => (
                         <button
                           key={opt.date}
-                          onClick={() => setHomeSelectedDate(opt.date)}
-                          className={`flex-1 min-w-[70px] p-2 rounded-[10px] border text-center transition-all ${
-                            homeSelectedDate === opt.date
-                              ? 'bg-[#2952AB] text-white border-[#2952AB] shadow-xs'
+                          type="button"
+                          onClick={() => {
+                            setInSalonSelectedDate(opt.date);
+                            setInSalonDateTimeConfirmed(true);
+                          }}
+                          className={`p-2 rounded-[10px] border text-center transition-all ${
+                            inSalonSelectedDate === opt.date
+                              ? 'bg-[#2952AB] text-white border-[#2952AB] shadow-sm font-bold'
                               : 'bg-white text-gray-700 border-gray-200 hover:border-[#2952AB]/30'
                           }`}
                         >
@@ -506,14 +597,21 @@ export function BeautyBusinessDetail() {
 
                   {/* Time Slots Selector */}
                   <div>
-                    <label className="text-[11px] text-gray-700 font-bold block mb-1.5">اختر وقت الوصول ({homeSelectedTimeSlot}):</label>
+                    <label className="text-[11px] text-gray-700 font-bold block mb-1.5 flex items-center justify-between">
+                      <span>اختر توقيت الحجز داخل الصالون:</span>
+                      <span className="text-[#2952AB] font-bold font-mono text-[11px]">الوقت: {inSalonSelectedTimeSlot}</span>
+                    </label>
                     <div className="grid grid-cols-5 gap-1.5">
-                      {homeDispatchSlots.map((slot) => (
+                      {inSalonTimeSlots.map((slot) => (
                         <button
                           key={slot}
-                          onClick={() => handleHomeTimeSlotChange(slot)}
+                          type="button"
+                          onClick={() => {
+                            setInSalonSelectedTimeSlot(slot);
+                            setInSalonDateTimeConfirmed(true);
+                          }}
                           className={`py-2 rounded-[8px] text-xs font-bold border transition-all ${
-                            homeSelectedTimeSlot === slot
+                            inSalonSelectedTimeSlot === slot
                               ? 'bg-[#C69815] text-white border-[#C69815] shadow-sm'
                               : 'bg-gray-50 text-gray-800 border-gray-200 hover:bg-[#FEFBF3]'
                           }`}
@@ -523,8 +621,255 @@ export function BeautyBusinessDetail() {
                       ))}
                     </div>
                   </div>
+
+                  {/* Confirmed Banner */}
+                  <div className="p-2.5 bg-[#F2F5FB] rounded-[10px] border border-[#C2D1E8]/50 flex items-center justify-between text-xs text-[#2952AB]">
+                    <div className="flex items-center gap-1.5 font-medium">
+                      <CheckCircle2 size={15} className="text-green-600 flex-shrink-0" />
+                      <span>
+                        الموعد المحدد: <strong>{salonDateOptions.find((d) => d.date === inSalonSelectedDate)?.day || inSalonSelectedDate}</strong> الساعة <strong>{inSalonSelectedTimeSlot}</strong>
+                      </span>
+                    </div>
+                    <span className="text-[10px] bg-green-100 text-green-800 font-bold px-2 py-0.5 rounded-full">
+                      تم التفعيل ✓
+                    </span>
+                  </div>
                 </div>
               )}
+
+              {/* ========================================================================= */}
+              {/* FLOW B: AT-HOME (في المنزل) */}
+              {/* Requirement: "If the customer selects 'At Home,' they must specify the location first. Based on whether the location falls within the salon's service zone, the date and time selection option will appear, followed by the choice of services." */}
+              {/* ========================================================================= */}
+              {locationMode === 'AT_HOME' && (
+                <div className="space-y-3.5">
+                  {/* STEP 1: SPECIFY LOCATION FIRST & ZONE CHECK */}
+                  <div className={`bg-white rounded-[16px] p-4 border-2 shadow-md space-y-3 transition-all ${
+                    !isWithinServiceZone ? 'border-red-400 bg-red-50/15' : 'border-[#2952AB]/30'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-[#2952AB] text-white text-xs font-bold flex items-center justify-center shadow-xs">
+                          1
+                        </span>
+                        <div>
+                          <h3 className="font-bold text-xs text-gray-900 flex items-center gap-1.5">
+                            <span>حدد موقعك أولاً للتحقق من نطاق التغطية</span>
+                            <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.2 rounded-full font-bold">
+                              خطوة إلزامية
+                            </span>
+                          </h3>
+                          <p className="text-[11px] text-gray-500">
+                            يجب التأكد من وقوع موقعك ضمن نطاق خدمة الصالون (أقصى نطاق: {maxServiceZoneKm} كم)
+                          </p>
+                        </div>
+                      </div>
+
+                      {isWithinServiceZone ? (
+                        <span className="text-[10px] bg-green-100 text-green-800 border border-green-300 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                          <Check size={12} />
+                          <span>ضمن النطاق ({homeDistanceKm} كم)</span>
+                        </span>
+                      ) : (
+                        <span className="text-[10px] bg-red-100 text-red-700 border border-red-300 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                          <AlertCircle size={12} />
+                          <span>خارج النطاق ({homeDistanceKm} كم)</span>
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Address Input & GPS Simulation */}
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <MapPin size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                          type="text"
+                          value={homeAddress}
+                          onChange={(e) => setHomeAddress(e.target.value)}
+                          placeholder="أدخل عنوان منزلك بالتفصيل..."
+                          className="w-full bg-[#F2F5FB] border border-[#C2D1E8]/50 pr-9 pl-24 py-2.5 rounded-[10px] text-xs text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#2952AB]/20"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleSimulateHomeGps}
+                          disabled={isLocatingGps}
+                          className="absolute left-1.5 top-1/2 -translate-y-1/2 px-2.5 py-1.5 bg-[#2952AB] hover:bg-[#1D3D7A] text-white rounded-[7px] text-[10px] font-bold flex items-center gap-1 transition-all shadow-xs"
+                        >
+                          <Navigation size={11} className={isLocatingGps ? 'animate-spin' : ''} />
+                          <span>{isLocatingGps ? 'جارِ التحديد...' : 'تحديد GPS'}</span>
+                        </button>
+                      </div>
+
+                      {/* Quick District selection buttons */}
+                      <div>
+                        <span className="text-[10px] text-gray-500 font-bold block mb-1">
+                          أو اختر حياً للتحقق السريع من النطاق:
+                        </span>
+                        <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar text-[11px]">
+                          {HOME_SERVICE_DISTRICTS.map((item) => (
+                            <button
+                              key={item.name}
+                              type="button"
+                              onClick={() => handleSelectDistrict(item)}
+                              className={`px-2.5 py-1 rounded-[8px] border whitespace-nowrap transition-all flex items-center gap-1 ${
+                                homeDistrict === item.name
+                                  ? item.inZone
+                                    ? 'bg-[#2952AB] text-white border-[#2952AB] font-bold shadow-xs'
+                                    : 'bg-red-600 text-white border-red-600 font-bold shadow-xs'
+                                  : item.inZone
+                                  ? 'bg-white text-gray-700 border-gray-200 hover:border-[#2952AB]/40'
+                                  : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                              }`}
+                            >
+                              <span>{item.name}</span>
+                              <span className="text-[9px] opacity-80 font-mono">({item.distance} كم)</span>
+                              {!item.inZone && (
+                                <span className="text-[9px] font-bold text-white bg-red-800 px-1 rounded">خارج</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ZONE VALIDATION ALERT / RESULT */}
+                    {!isWithinServiceZone ? (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-[12px] space-y-2 text-xs text-red-900 animate-fadeIn">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <strong className="font-bold block text-red-950">الموقع خارج نطاق الخدمة المنزلية لهذا الصالون</strong>
+                            <p className="text-[11px] text-red-800 mt-0.5 leading-relaxed">
+                              يبعد موقعك الحالي (<strong>{homeDistanceKm} كم</strong>)، بينما الحد الأقصى لنطاق الخدمة المنزلية هو <strong>{maxServiceZoneKm} كم</strong>.
+                              لا يمكن عرض المواعيد أو الخدمات المنزلية لهذا الموقع.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 pt-1 border-t border-red-200/60">
+                          <button
+                            type="button"
+                            onClick={() => handleLocationModeChange('IN_BRANCH')}
+                            className="flex-1 py-2 px-3 bg-[#2952AB] text-white rounded-[8px] text-[11px] font-bold text-center hover:bg-[#1D3D7A] transition-all flex items-center justify-center gap-1 shadow-xs"
+                          >
+                            <Store size={13} />
+                            <span>التحويل للحجز داخل الصالون بدلاً من ذلك</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectDistrict(HOME_SERVICE_DISTRICTS[0])}
+                            className="py-2 px-3 bg-white border border-red-300 text-red-800 rounded-[8px] text-[11px] font-bold hover:bg-red-100 transition-all"
+                          >
+                            اختيار موقع داخل النطاق
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-2.5 bg-green-50 border border-green-200 rounded-[10px] flex items-center justify-between text-xs text-green-900 animate-fadeIn">
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <CheckCircle2 size={16} className="text-green-600 flex-shrink-0" />
+                          <span>
+                            الموقع معتمد: <strong>{homeDistrict}</strong> (يبعد {homeDistanceKm} كم) • رسوم التوصيل: {selectedBranch.homeDeliveryBaseFee || 40} ر.س
+                          </span>
+                        </div>
+                        <span className="text-[10px] bg-green-600 text-white font-bold px-2 py-0.5 rounded-full">
+                          مشمول بالتغطية ✓
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* STEP 2: DATE AND TIME SELECTION (ONLY APPEARS BASED ON LOCATION FALLING WITHIN SERVICE ZONE) */}
+                  {isWithinServiceZone ? (
+                    <div className="bg-white rounded-[16px] p-4 border-2 border-[#2952AB]/30 shadow-md space-y-3 animate-fadeIn">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-[#2952AB] text-white text-xs font-bold flex items-center justify-center shadow-xs">
+                            2
+                          </span>
+                          <div>
+                            <h3 className="font-bold text-xs text-gray-900 flex items-center gap-1.5">
+                              <span>حدد موعد وصول فريق الصالون لمنزلك</span>
+                              <span className="text-[10px] bg-green-100 text-green-800 px-2 py-0.2 rounded-full font-bold">
+                                ظهر بعد تأكيد الموقع
+                              </span>
+                            </h3>
+                            <p className="text-[11px] text-gray-500">اختر التاريخ والوقت المناسبين لحضور طاقم التجميل</p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] bg-[#FEF8E7] text-[#8A680F] border border-[#FAEFC1] px-2 py-0.5 rounded font-bold">
+                          جاهزية الفريق
+                        </span>
+                      </div>
+
+                      {/* Date Selector */}
+                      <div>
+                        <label className="text-[11px] text-gray-700 font-bold block mb-1.5">اختر تاريخ الزيارة المنزلية:</label>
+                        <div className="grid grid-cols-5 gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                          {salonDateOptions.map((opt) => (
+                            <button
+                              key={opt.date}
+                              type="button"
+                              onClick={() => setHomeSelectedDate(opt.date)}
+                              className={`p-2 rounded-[10px] border text-center transition-all ${
+                                homeSelectedDate === opt.date
+                                  ? 'bg-[#2952AB] text-white border-[#2952AB] shadow-sm font-bold'
+                                  : 'bg-white text-gray-700 border-gray-200 hover:border-[#2952AB]/30'
+                              }`}
+                            >
+                              <span className="text-[10px] block opacity-80">{opt.dayName}</span>
+                              <span className="text-xs font-bold block mt-0.5">{opt.day}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Time Slots Selector */}
+                      <div>
+                        <label className="text-[11px] text-gray-700 font-bold block mb-1.5 flex items-center justify-between">
+                          <span>اختر وقت وصول الفريق لمنزلك:</span>
+                          <span className="text-[#C69815] font-bold font-mono text-[11px]">الوقت: {homeSelectedTimeSlot}</span>
+                        </label>
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {homeDispatchSlots.map((slot) => (
+                            <button
+                              key={slot}
+                              type="button"
+                              onClick={() => handleHomeTimeSlotChange(slot)}
+                              className={`py-2 rounded-[8px] text-xs font-bold border transition-all ${
+                                homeSelectedTimeSlot === slot
+                                  ? 'bg-[#C69815] text-white border-[#C69815] shadow-sm'
+                                  : 'bg-gray-50 text-gray-800 border-gray-200 hover:bg-[#FEFBF3]'
+                              }`}
+                            >
+                              {slot}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="p-2 bg-[#FEFBF3] rounded-[9px] border border-[#FAEFC1] text-[11px] text-[#8A680F] flex items-center gap-1.5">
+                        <Clock size={14} className="text-[#C69815] flex-shrink-0" />
+                        <span>
+                          تم اعتماد موعد الزيارة: <strong>{salonDateOptions.find((d) => d.date === homeSelectedDate)?.day || homeSelectedDate}</strong> الساعة <strong>{homeSelectedTimeSlot}</strong>
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Locked placeholder if outside zone */
+                    <div className="p-3 bg-gray-100/70 border border-dashed border-gray-300 rounded-[12px] text-center text-xs text-gray-500">
+                      🔒 خيار تحديد التاريخ والوقت سيظهر فور تحديد موقع يقع ضمن نطاق خدمة الصالون.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ========================================================================= */}
+              {/* STEP: CHOICE OF SERVICES */}
+              {/* For In-Salon: Appears as Step 2 after choosing date & time */}
+              {/* For At-Home: Follows after location falls within zone and date/time is selected */}
+              {/* ========================================================================= */}
+              {locationMode === 'AT_HOME' && !isWithinServiceZone ? null : (
+                <div className="space-y-3 pt-2">
 
               {/* Service Categories Display */}
               <div>
@@ -695,6 +1040,8 @@ export function BeautyBusinessDetail() {
               </div>
             </div>
           )}
+        </div>
+      )}
 
           {/* TAB 2: Professionals (US-012, US-031) */}
           {activeTab === 'team' && (
